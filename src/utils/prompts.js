@@ -82,6 +82,13 @@ Please synthesize these into:
 export function parseStatus(responseText) {
     if (!responseText) return null;
 
+    // If model tags another model (asking a question), force status to CONTINUE
+    // even if they explicitly wrote SATISFIED.
+    // The prompt instructs: "Optionally: a direct question... (use @Claude...)"
+    if (/@(Claude|GPT|Gemini)/i.test(responseText)) {
+        return 'continue';
+    }
+
     // Look for STATUS: line (case insensitive)
     const statusMatch = responseText.match(/STATUS:\s*(CONTINUE|SATISFIED|IMPASSE)/i);
     if (statusMatch) {
