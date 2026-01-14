@@ -10,7 +10,7 @@ RationaLLM is designed to overcome individual model biases and hallucinations by
 2.  **Refine** their own answers based on new perspectives.
 3.  **Converge** on a more accurate, nuanced consensus.
 
-*NOTE: RationaLLM currently uses manual routing so that you can use the chatbot UIs which have higher limits for tokens and messages than the APIs. A future version might have API support since that can be automnated.*
+*NOTE: RationaLLM currently uses manual routing so that you can use the chatbot UIs which have higher limits for tokens and messages than the APIs. A future version might have API support since that can be automated.*
 
 ## How It Works
 
