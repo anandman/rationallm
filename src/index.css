@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/* Custom theme for RationaLLM */
+@theme {
+  /* Model colors */
+  --color-claude: #c96442;
+  --color-claude-light: #e8a88a;
+  --color-claude-dark: #8b4432;
+  
+  --color-gpt: #10a37f;
+  --color-gpt-light: #5fd4af;
+  --color-gpt-dark: #0a7258;
+  
+  --color-gemini: #4285f4;
+  --color-gemini-light: #7eb4ff;
+  --color-gemini-dark: #2d5aa8;
+  
+  /* Dark theme */
+  --color-surface: #0f0f0f;
+  --color-surface-alt: #1a1a1a;
+  --color-surface-hover: #252525;
+  --color-border: #333333;
+  --color-text: #e5e5e5;
+  --color-text-muted: #888888;
+}
+
+/* Base styles */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--color-surface);
+  color: var(--color-text);
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* Textarea styling */
+textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* Focus styles */
+input:focus,
+textarea:focus,
+button:focus-visible {
+  outline: 2px solid var(--color-gemini);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
