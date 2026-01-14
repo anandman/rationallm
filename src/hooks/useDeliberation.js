@@ -144,6 +144,11 @@ export function useDeliberation() {
     const shouldShowSynthesis = useCallback(() => {
         const responses = getCurrentResponses();
         if (!allResponsesFilled(responses, state.enabledModels)) return false;
+
+        // If multiple models, force at least 2 rounds so they see others' answers
+        const isMultiModel = state.enabledModels.length > 1;
+        if (isMultiModel && state.currentRound < 2) return false;
+
         return shouldProceedToSynthesis(responses) || state.currentRound >= MAX_ROUNDS;
     }, [getCurrentResponses, state.enabledModels, state.currentRound]);
 
@@ -153,7 +158,13 @@ export function useDeliberation() {
             const responses = prev.rounds[prev.currentRound - 1]?.responses || {};
 
             // Check if should go to synthesis
-            if (shouldProceedToSynthesis(responses) || prev.currentRound >= MAX_ROUNDS) {
+            const isMultiModel = prev.enabledModels.length > 1;
+            const minRounds = isMultiModel ? 2 : 1;
+
+            const allSatisfied = shouldProceedToSynthesis(responses);
+            const readyForSynthesis = (allSatisfied && prev.currentRound >= minRounds) || prev.currentRound >= MAX_ROUNDS;
+
+            if (readyForSynthesis) {
                 // Generate synthesis prompt
                 const finalResponses = {};
                 prev.enabledModels.forEach(id => {
