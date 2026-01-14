@@ -65,4 +65,4 @@ To deploy your own version to GitHub Pages:
 
 Created by **Anand Mandapati**.
 
-This project was built entirely by AI using **Google Antigravity** and **Claude Opus**, fixed by **Google Gemini.
+This project was built entirely by AI using **Google Antigravity** and **Claude Opus**, fixed by **Google Gemini**.
