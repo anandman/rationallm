@@ -100,6 +100,8 @@ function App() {
           <FinalView
             deliberation={state}
             onStartNew={startNew}
+            apiKeys={apiKeys}
+            settings={settings}
           />
         );
 

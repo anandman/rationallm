@@ -73,6 +73,8 @@ To use Automated Mode, you can either:
 - **Persistence**: Your API keys, model selections, and settings are automatically saved.
 - **Smart Defaults**: The app auto-selects models based on which API keys you provide.
 - **Error Recovery**: If a model fails (e.g., quota exceeded), you can click "Exclude this model" to seamlessly continue the deliberation without it.
+- **Follow-up Chat**: After synthesis, continue the conversation with any model directly in the app. The model has full context of the original question and synthesized answer.
+- **Export Context**: One-click copy of your question + answer for pasting into external chatbots.
 - **Data Safety**: We use robust error boundaries to protect your session. If data ever gets corrupted, a "ReferenceError" or crash screen will offer a "Reset App Data" button to fix it.
 
 ## Troubleshooting
