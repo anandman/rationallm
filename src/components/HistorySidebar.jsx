@@ -44,7 +44,7 @@ export function HistorySidebar({ history, onSelect, onDelete, isOpen, onClose })
                                     </p>
                                     <div className="flex items-center justify-between">
                                         <span className="text-xs text-text-muted">
-                                            {item.currentRound} round{item.currentRound > 1 ? 's' : ''} • {item.enabledModels.map(m => MODEL_NAMES[m][0]).join('')}
+                                            {item.currentRound} round{item.currentRound > 1 ? 's' : ''} • {item.enabledModels.map(m => (MODEL_NAMES[m] || m)[0]).join('')}
                                         </span>
                                         <button
                                             onClick={(e) => {
