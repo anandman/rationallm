@@ -1,16 +1,15 @@
 // Prompt generation utilities for RationaLLM
 
-export const MODEL_NAMES = {
-    claude: 'Claude',
-    gpt: 'GPT',
-    gemini: 'Gemini'
-};
+import { MODEL_DISPLAY } from './models.js';
 
-export const MODEL_COLORS = {
-    claude: 'claude',
-    gpt: 'gpt',
-    gemini: 'gemini'
-};
+// Dynamic model names from models.js
+export const MODEL_NAMES = Object.fromEntries(
+    Object.entries(MODEL_DISPLAY).map(([id, info]) => [id, info.shortName])
+);
+
+export const MODEL_COLORS = Object.fromEntries(
+    Object.entries(MODEL_DISPLAY).map(([id]) => [id, id])
+);
 
 /**
  * Generate Round 1 prompt (same for all models)
@@ -25,7 +24,7 @@ STATUS: CONTINUE (yes, show me other perspectives) or SATISFIED (my answer is co
 /**
  * Generate Round N prompt with cross-model context
  */
-export function generateRoundNPrompt(query, modelId, ownResponse, othersResponses, roundNumber) {
+export function generateRoundNPrompt(query, modelId, ownResponse, othersResponses) {
     const otherModelsText = Object.entries(othersResponses)
         .filter(([id]) => id !== modelId)
         .map(([id, response]) => `[${MODEL_NAMES[id]}] said:\n${response}`)

@@ -10,8 +10,15 @@ function App() {
   const {
     state,
     history,
+    apiKeys,
+    settings,
+    isRunning,
     setQuery,
+    setApiKeys,
+    setSettings,
     toggleModel,
+    setModelConfig,
+    setSynthesisModel,
     startDeliberation,
     updateResponse,
     nextRound,
@@ -20,6 +27,9 @@ function App() {
     startNew,
     loadFromHistory,
     deleteFromHistory,
+    runAutomatedRound,
+    runAutomatedSynthesis,
+    canAutomate,
     getPromptForModel,
     getCurrentResponses,
     canProceedToNextRound,
@@ -35,9 +45,18 @@ function App() {
           <SetupScreen
             query={state.query}
             enabledModels={state.enabledModels}
+            modelConfigs={state.modelConfigs}
+            synthesisModel={state.synthesisModel}
+            apiKeys={apiKeys}
+            settings={settings}
             onQueryChange={setQuery}
             onToggleModel={toggleModel}
+            onSetModelConfig={setModelConfig}
+            onSetSynthesisModel={setSynthesisModel}
+            onSetApiKeys={setApiKeys}
+            onSetSettings={setSettings}
             onStart={startDeliberation}
+            canAutomate={canAutomate}
           />
         );
 
@@ -52,6 +71,10 @@ function App() {
             onNextRound={nextRound}
             canProceed={canProceedToNextRound()}
             shouldShowSynthesis={shouldShowSynthesis()}
+            isAutomated={settings.isAutomated}
+            isRunning={isRunning}
+            onRunAutomatedRound={runAutomatedRound}
+            onToggleModel={toggleModel}
           />
         );
 
@@ -60,9 +83,15 @@ function App() {
           <SynthesisScreen
             synthesisPrompt={state.synthesis.prompt}
             synthesisResponse={state.synthesis.response}
+            synthesisLoading={state.synthesis.loading}
+            synthesisError={state.synthesis.error}
+            synthesisModel={state.synthesisModel}
             onUpdateSynthesis={updateSynthesis}
             onComplete={complete}
+            onRunAutomatedSynthesis={runAutomatedSynthesis}
             currentRound={state.currentRound}
+            isAutomated={settings.isAutomated}
+            isRunning={isRunning}
           />
         );
 
@@ -94,12 +123,19 @@ function App() {
             </svg>
           </button>
 
-          <button
-            onClick={startNew}
-            className="text-sm font-medium text-text-muted hover:text-text transition-colors"
-          >
-            {state.phase !== 'setup' ? 'New Deliberation' : ''}
-          </button>
+          <div className="flex items-center gap-4">
+            {state.phase !== 'setup' && isRunning && (
+              <span className="text-sm text-text-muted animate-pulse">
+                ● Running
+              </span>
+            )}
+            <button
+              onClick={startNew}
+              className="text-sm font-medium text-text-muted hover:text-text transition-colors"
+            >
+              {state.phase !== 'setup' ? 'New Deliberation' : ''}
+            </button>
+          </div>
         </div>
       </header>
 

@@ -1,0 +1,26 @@
+{
+    "apiKeys": {
+        "openrouter": "sk-or-v1-your-openrouter-key-here",
+        "openai": "sk-proj-your-openai-key-here",
+        "anthropic": "sk-ant-your-anthropic-key-here",
+        "google": "AIza-your-google-key-here",
+        "xai": "xai-your-xai-key-here",
+        "mistral": "your-mistral-key-here",
+        "deepseek": "sk-your-deepseek-key-here"
+    },
+    "deliberationModels": [
+        {
+            "provider": "openai",
+            "model": "gpt-4o"
+        },
+        {
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-20250514"
+        }
+    ],
+    "synthesisModel": {
+        "provider": "google",
+        "model": "gemini-2.5-pro"
+    },
+    "useOpenRouter": false
+}

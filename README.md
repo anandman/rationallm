@@ -10,7 +10,18 @@ RationaLLM is designed to overcome individual model biases and hallucinations by
 2.  **Refine** their own answers based on new perspectives.
 3.  **Converge** on a more accurate, nuanced consensus.
 
-*NOTE: RationaLLM currently uses manual routing so that you can use the chatbot UIs which have higher limits for tokens and messages than the APIs. A future version might have API support since that can be automated.*
+### Modes
+1.  **Automated Mode** (New!): Enter your API keys to have RationaLLM automatically run the rounds for you.
+2.  **Manual Mode**: Classic copy-paste workflow. Useful if you don't have API keys or want to use web interfaces.
+
+## Supported Models
+- **OpenAI**: GPT-4o, o1, etc.
+- **Anthropic**: Claude 3.5 Sonnet, Opus
+- **Google**: Gemini 1.5 Pro, 2.0 Flash
+- **xAI**: Grok 2
+- **Mistral**: Mistral Large, Codestral
+- **DeepSeek**: DeepSeek V3
+- **Others**: 400+ models via OpenRouter support
 
 ## How It Works
 
@@ -50,6 +61,25 @@ You can use the live version hosted here:
     ```
 
 4.  Open `http://localhost:5173` in your browser.
+5.  (Optional) For automated testing, copy `test.config.example.json` to `test.config.json` and add your API keys.
+
+## API Configuration
+To use Automated Mode, you can either:
+- **Recommended**: Use an **OpenRouter** key to access all models with a single key.
+- **Direct**: Enter individual API keys for OpenAI, Anthropic, Google, etc.
+- Keys are stored securely in your browser's `localStorage` and never sent to our servers.
+
+## Smart Features
+- **Persistence**: Your API keys, model selections, and settings are automatically saved.
+- **Smart Defaults**: The app auto-selects models based on which API keys you provide.
+- **Error Recovery**: If a model fails (e.g., quota exceeded), you can click "Exclude this model" to seamlessly continue the deliberation without it.
+- **Data Safety**: We use robust error boundaries to protect your session. If data ever gets corrupted, a "ReferenceError" or crash screen will offer a "Reset App Data" button to fix it.
+
+## Troubleshooting
+If you encounter a blank screen or crashLoop:
+1.  The app now includes an **Error Boundary**.
+2.  Click the red **"Reset App Data"** button on the crash screen.
+3.  This clears your local cache and restores the app to a clean state.
 
 ## Deployment
 
