@@ -31,9 +31,11 @@ export function RoundDisplay({
     useEffect(() => {
         if (isAutomated && canProceed && !isRunning) {
             // Small delay to let user see the responses
+            // If tab is hidden, reduce delay to avoid throttling
+            const delay = document.hidden ? 50 : 1500;
             const timer = setTimeout(() => {
                 onNextRound();
-            }, 1500);
+            }, delay);
             return () => clearTimeout(timer);
         }
     }, [isAutomated, canProceed, isRunning, onNextRound]);

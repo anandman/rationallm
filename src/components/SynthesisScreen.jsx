@@ -30,9 +30,11 @@ export function SynthesisScreen({
     // Auto-complete when synthesis is done in automated mode
     useEffect(() => {
         if (isAutomated && synthesisResponse && !isRunning) {
+            // If tab is hidden, reduce delay to avoid throttling
+            const delay = document.hidden ? 50 : 2000;
             const timer = setTimeout(() => {
                 onComplete();
-            }, 2000);
+            }, delay);
             return () => clearTimeout(timer);
         }
     }, [isAutomated, synthesisResponse, isRunning, onComplete]);
