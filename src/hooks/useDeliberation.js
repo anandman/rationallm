@@ -60,12 +60,16 @@ export function useDeliberation() {
             const savedPreferences = localStorage.getItem(PREFERENCES_KEY);
             let initialEnabled = [];
             let initialConfigs = {};
+            let initialSynthesisModel = { provider: 'openai', model: null };
 
             if (savedPreferences) {
                 const prefs = JSON.parse(savedPreferences);
                 if (prefs) {
                     initialEnabled = prefs.enabledModels || [];
                     initialConfigs = prefs.modelConfigs || {};
+                    if (prefs.synthesisModel) {
+                        initialSynthesisModel = prefs.synthesisModel;
+                    }
                 }
             }
 
@@ -87,7 +91,8 @@ export function useDeliberation() {
             return {
                 ...createInitialState(),
                 enabledModels: initialEnabled,
-                modelConfigs: initialConfigs
+                modelConfigs: initialConfigs,
+                synthesisModel: initialSynthesisModel
             };
         } catch (e) {
             console.error('Failed to restore state:', e);
@@ -138,10 +143,11 @@ export function useDeliberation() {
     useEffect(() => {
         const prefs = {
             enabledModels: state.enabledModels,
-            modelConfigs: state.modelConfigs
+            modelConfigs: state.modelConfigs,
+            synthesisModel: state.synthesisModel
         };
         localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
-    }, [state.enabledModels, state.modelConfigs]);
+    }, [state.enabledModels, state.modelConfigs, state.synthesisModel]);
 
     // Save history to localStorage
     useEffect(() => {
@@ -505,7 +511,8 @@ export function useDeliberation() {
         setState(prev => ({
             ...createInitialState(),
             enabledModels: prev.enabledModels,
-            modelConfigs: prev.modelConfigs
+            modelConfigs: prev.modelConfigs,
+            synthesisModel: prev.synthesisModel
         }));
     }, []);
 
