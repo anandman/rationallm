@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ProgressIndicator } from './ProgressIndicator';
 import { MODEL_DISPLAY } from '../utils/models';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 export function SynthesisScreen({
     synthesisPrompt,
@@ -15,6 +16,7 @@ export function SynthesisScreen({
     isAutomated,
     isRunning
 }) {
+    const [viewMode, setViewMode] = useState((isAutomated || synthesisResponse) ? 'preview' : 'edit');
     const [copied, setCopied] = useState(false);
     const [showPrompt, setShowPrompt] = useState(!isAutomated);
 
@@ -122,9 +124,25 @@ export function SynthesisScreen({
 
             {/* Synthesis response */}
             <div className="bg-surface-alt rounded-xl border border-border p-6 mb-8">
-                <label className="block text-sm font-medium text-text-muted mb-3">
-                    {isAutomated ? 'Synthesis response:' : 'Paste the synthesis response:'}
-                </label>
+                <div className="flex items-center justify-between mb-3">
+                    <label className="block text-sm font-medium text-text-muted">
+                        {isAutomated ? 'Synthesis response:' : 'Paste the synthesis response:'}
+                    </label>
+                    <div className="flex bg-surface rounded-lg p-0.5 border border-border">
+                        <button
+                            onClick={() => setViewMode('preview')}
+                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${viewMode === 'preview' ? 'bg-surface-alt text-text shadow-sm' : 'text-text-muted hover:text-text'}`}
+                        >
+                            Preview
+                        </button>
+                        <button
+                            onClick={() => setViewMode('edit')}
+                            className={`px-3 py-1 text-xs font-medium rounded transition-colors ${viewMode === 'edit' ? 'bg-surface-alt text-text shadow-sm' : 'text-text-muted hover:text-text'}`}
+                        >
+                            {isAutomated ? 'Raw' : 'Edit'}
+                        </button>
+                    </div>
+                </div>
 
                 {synthesisLoading ? (
                     <div className="w-full h-64 flex items-center justify-center bg-surface rounded-lg border border-border">
@@ -150,13 +168,27 @@ export function SynthesisScreen({
                         </button>
                     </div>
                 ) : (
-                    <textarea
-                        value={synthesisResponse || ''}
-                        onChange={(e) => onUpdateSynthesis(e.target.value)}
-                        placeholder={isAutomated ? 'Synthesis will appear here...' : 'Paste the synthesis response here...'}
-                        readOnly={isAutomated && synthesisResponse}
-                        className={`w-full h-64 px-4 py-3 bg-surface rounded-lg text-text placeholder:text-text-muted resize-y border border-border transition-colors ${isAutomated && synthesisResponse ? '' : 'focus:border-[#4285f4]'}`}
-                    />
+                    <div className="relative">
+                        {viewMode === 'preview' ? (
+                            <div className="w-full h-64 px-4 py-3 bg-surface rounded-lg border border-border overflow-y-auto">
+                                {synthesisResponse ? (
+                                    <MarkdownRenderer content={synthesisResponse} />
+                                ) : (
+                                    <span className="text-sm text-text-muted italic">
+                                        {isAutomated ? 'Synthesis will appear here...' : 'No content to preview.'}
+                                    </span>
+                                )}
+                            </div>
+                        ) : (
+                            <textarea
+                                value={synthesisResponse || ''}
+                                onChange={(e) => onUpdateSynthesis(e.target.value)}
+                                placeholder={isAutomated ? 'Synthesis will appear here...' : 'Paste the synthesis response here...'}
+                                readOnly={isAutomated && synthesisResponse}
+                                className={`w-full h-64 px-4 py-3 bg-surface rounded-lg text-text placeholder:text-text-muted resize-y border border-border transition-colors ${isAutomated && synthesisResponse ? '' : 'focus:border-[#4285f4]'}`}
+                            />
+                        )}
+                    </div>
                 )}
             </div>
 

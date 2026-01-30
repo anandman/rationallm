@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ProgressIndicator } from './ProgressIndicator';
 import { FollowUpChat } from './FollowUpChat';
 import { MODEL_NAMES, exportAsMarkdown } from '../utils/prompts';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 export function FinalView({ deliberation, onStartNew, apiKeys, settings }) {
     const [copiedMarkdown, setCopiedMarkdown] = useState(false);
@@ -111,9 +112,7 @@ ${deliberation.synthesis?.response || ''}
                                                         </span>
                                                     )}
                                                 </h4>
-                                                <p className="text-sm text-text-muted whitespace-pre-wrap">
-                                                    {response.text}
-                                                </p>
+                                                <MarkdownRenderer content={response.text} />
                                             </div>
                                         );
                                     })}
@@ -128,9 +127,7 @@ ${deliberation.synthesis?.response || ''}
             {deliberation.synthesis?.response && (
                 <div className="bg-surface-alt rounded-xl border-2 border-gpt p-6 mb-8">
                     <h3 className="font-semibold mb-3 text-gpt">Final Synthesis</h3>
-                    <p className="text-text whitespace-pre-wrap">
-                        {deliberation.synthesis.response}
-                    </p>
+                    <MarkdownRenderer content={deliberation.synthesis.response} />
                 </div>
             )}
 

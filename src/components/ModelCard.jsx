@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { MODEL_DISPLAY } from '../utils/models';
+import { MarkdownRenderer } from './MarkdownRenderer';
 
 export function ModelCard({ modelId, prompt, response, status, loading, error, onResponseChange, isAutomated, onDisable }) {
     const [copied, setCopied] = useState(false);
     const [showPrompt, setShowPrompt] = useState(!isAutomated);
+    const [viewMode, setViewMode] = useState((isAutomated || response) ? 'preview' : 'edit');
 
     const display = MODEL_DISPLAY[modelId] || MODEL_DISPLAY.openai;
     const colorVar = display.color;
@@ -127,9 +129,26 @@ export function ModelCard({ modelId, prompt, response, status, loading, error, o
             {/* Response section */}
             <div className="p-4">
                 <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm text-text-muted">
-                        {isAutomated ? `${modelName}'s response:` : `Paste ${modelName}'s response:`}
-                    </label>
+                    <div className="flex items-center gap-3">
+                        <label className="text-sm text-text-muted">
+                            {modelName}'s response:
+                        </label>
+                        {/* View toggle */}
+                        <div className="flex bg-surface rounded-lg p-0.5 border border-border">
+                            <button
+                                onClick={() => setViewMode('preview')}
+                                className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${viewMode === 'preview' ? 'bg-surface-alt text-text shadow-sm' : 'text-text-muted hover:text-text'}`}
+                            >
+                                Preview
+                            </button>
+                            <button
+                                onClick={() => setViewMode('edit')}
+                                className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${viewMode === 'edit' ? 'bg-surface-alt text-text shadow-sm' : 'text-text-muted hover:text-text'}`}
+                            >
+                                {isAutomated ? 'Raw' : 'Edit'}
+                            </button>
+                        </div>
+                    </div>
                     {!loading && (
                         <span className={`text-xs ${response ? 'text-[#10a37f]' : 'text-text-muted'}`}>
                             {response ? '✓ Has content' : '○ Empty'}
@@ -138,7 +157,7 @@ export function ModelCard({ modelId, prompt, response, status, loading, error, o
                 </div>
 
                 {loading ? (
-                    <div className="w-full h-40 flex items-center justify-center bg-surface rounded-lg border border-border">
+                    <div className="w-full h-48 flex items-center justify-center bg-surface rounded-lg border border-border">
                         <div className="flex items-center gap-3 text-text-muted">
                             <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -148,7 +167,7 @@ export function ModelCard({ modelId, prompt, response, status, loading, error, o
                         </div>
                     </div>
                 ) : error ? (
-                    <div className="w-full h-40 flex flex-col items-center justify-center bg-red-500/10 rounded-lg border border-red-500/30 text-red-500 p-4">
+                    <div className="w-full h-48 flex flex-col items-center justify-center bg-red-500/10 rounded-lg border border-red-500/30 text-red-500 p-4">
                         <svg className="w-6 h-6 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
@@ -163,13 +182,27 @@ export function ModelCard({ modelId, prompt, response, status, loading, error, o
                         )}
                     </div>
                 ) : (
-                    <textarea
-                        value={response}
-                        onChange={(e) => onResponseChange(e.target.value)}
-                        placeholder={isAutomated ? 'Response will appear here...' : `Paste ${modelName}'s response here...`}
-                        readOnly={isAutomated && response}
-                        className={`w-full h-40 px-3 py-2 bg-surface rounded-lg text-sm text-text placeholder:text-text-muted resize-y border border-border transition-colors ${isAutomated && response ? '' : 'focus:border-[#4285f4]'}`}
-                    />
+                    <div className="relative">
+                        {viewMode === 'preview' ? (
+                            <div className="w-full h-48 px-4 py-3 bg-surface rounded-lg border border-border overflow-y-auto">
+                                {response ? (
+                                    <MarkdownRenderer content={response} />
+                                ) : (
+                                    <span className="text-sm text-text-muted italic">
+                                        {isAutomated ? 'Response will appear here...' : 'No content to preview.'}
+                                    </span>
+                                )}
+                            </div>
+                        ) : (
+                            <textarea
+                                value={response}
+                                onChange={(e) => onResponseChange(e.target.value)}
+                                placeholder={isAutomated ? 'Response will appear here...' : `Paste ${modelName}'s response here...`}
+                                readOnly={isAutomated && response}
+                                className={`w-full h-48 px-3 py-2 bg-surface rounded-lg text-sm text-text placeholder:text-text-muted resize-y border border-border transition-colors ${isAutomated && response ? '' : 'focus:border-[#4285f4]'}`}
+                            />
+                        )}
+                    </div>
                 )}
             </div>
         </div>
