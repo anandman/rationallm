@@ -72,6 +72,7 @@ export function RoundDisplay({
                         response={responses[modelId]?.text || ''}
                         status={responses[modelId]?.status}
                         loading={responses[modelId]?.loading}
+                        pending={responses[modelId]?.pending}
                         error={responses[modelId]?.error}
                         onResponseChange={(text) => onUpdateResponse(modelId, text)}
                         isAutomated={isAutomated}

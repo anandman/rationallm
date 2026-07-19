@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
-export function ModelCard({ info, prompt, response, status, loading, error, onResponseChange, isAutomated, onDisable }) {
+export function ModelCard({ info, prompt, response, status, loading, pending, error, onResponseChange, isAutomated, onDisable }) {
     const [copied, setCopied] = useState(false);
     const [showPrompt, setShowPrompt] = useState(!isAutomated);
     const [viewMode, setViewMode] = useState((isAutomated || response) ? 'preview' : 'edit');
@@ -33,6 +33,14 @@ export function ModelCard({ info, prompt, response, status, loading, error, onRe
             return (
                 <span className="px-2 py-0.5 rounded text-xs font-semibold text-white bg-red-500" title={error}>
                     ERROR
+                </span>
+            );
+        }
+
+        if (pending) {
+            return (
+                <span className="px-2 py-0.5 rounded text-xs font-semibold text-text-muted bg-surface-hover">
+                    QUEUED
                 </span>
             );
         }
@@ -148,7 +156,7 @@ export function ModelCard({ info, prompt, response, status, loading, error, onRe
                             </button>
                         </div>
                     </div>
-                    {!loading && (
+                    {!loading && !pending && (
                         <span className={`text-xs ${response ? 'text-[#10a37f]' : 'text-text-muted'}`}>
                             {response ? '✓ Has content' : '○ Empty'}
                         </span>
@@ -163,6 +171,15 @@ export function ModelCard({ info, prompt, response, status, loading, error, onRe
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                             </svg>
                             <span>Generating response...</span>
+                        </div>
+                    </div>
+                ) : pending ? (
+                    <div className="w-full h-48 flex items-center justify-center bg-surface rounded-lg border border-border">
+                        <div className="flex items-center gap-3 text-text-muted opacity-70">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Queued — waiting for its turn…</span>
                         </div>
                     </div>
                 ) : error ? (

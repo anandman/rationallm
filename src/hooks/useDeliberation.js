@@ -308,6 +308,7 @@ export function useDeliberation() {
                 text,
                 status: parseStatus(text, Object.values(labelsOf(prev))),
                 loading: false,
+                pending: false,
                 error: null
             };
 
@@ -396,9 +397,10 @@ export function useDeliberation() {
                 return generateRoundNPrompt(state.query, config.id, ownResponse, othersResponses, labels);
             };
 
-            // Update loading states
+            // Mark all targets queued; each flips to loading when its call
+            // actually starts (serial local models wait their turn)
             targets.forEach(id => {
-                updateResponseState(id, { loading: true, error: null });
+                updateResponseState(id, { pending: true, loading: false, error: null });
             });
 
             // Call all pending models (local-server calls run serially when
@@ -409,9 +411,9 @@ export function useDeliberation() {
                 apiKeys,
                 (id, status, error) => {
                     if (status === 'loading') {
-                        updateResponseState(id, { loading: true });
+                        updateResponseState(id, { loading: true, pending: false });
                     } else if (status === 'error') {
-                        updateResponseState(id, { loading: false, error });
+                        updateResponseState(id, { loading: false, pending: false, error });
                     }
                 },
                 { serialProviders: settings.serialLocal !== false ? ['ollama'] : [] }
@@ -422,7 +424,7 @@ export function useDeliberation() {
                 if (result.success) {
                     updateResponse(id, result.text);
                 } else {
-                    updateResponseState(id, { loading: false, error: result.error });
+                    updateResponseState(id, { loading: false, pending: false, error: result.error });
                 }
             });
 
