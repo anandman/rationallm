@@ -17,13 +17,19 @@ export const MODEL_COLORS = Object.fromEntries(
 export function generateRound1Prompt(query) {
     return `${query}
 
-Please provide your answer. At the end, on its own line, indicate if you'd want to see how other AI models answered this question to refine your response:
+Please provide your answer. Then indicate whether you'd want to see how other AI models answered this question to refine your response. IMPORTANT: your reply MUST end with exactly one line in this format:
 STATUS: CONTINUE (yes, show me other perspectives) or SATISFIED (my answer is complete)`;
 }
 
 // Resolve a display label for a participant id, with legacy fallbacks
 function labelFor(id, labels) {
     return labels?.[id] || MODEL_NAMES[id] || id;
+}
+
+// Reasoning models (DeepSeek R1 etc.) wrap chain-of-thought in <think> tags;
+// keep it out of cross-model context and synthesis input
+function stripThink(text) {
+    return (text || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 }
 
 /**
@@ -33,7 +39,7 @@ function labelFor(id, labels) {
 export function generateRoundNPrompt(query, modelId, ownResponse, othersResponses, labels) {
     const otherModelsText = Object.entries(othersResponses)
         .filter(([id]) => id !== modelId)
-        .map(([id, response]) => `[${labelFor(id, labels)}] said:\n${response}`)
+        .map(([id, response]) => `[${labelFor(id, labels)}] said:\n${stripThink(response)}`)
         .join('\n\n');
 
     const mentionExamples = Object.keys(othersResponses)
@@ -58,7 +64,7 @@ Review the other perspectives. Then provide:
 3. Where you still disagree and why
 4. Optionally: a direct question for a specific model (use ${mentionExamples})
 
-End with your status on its own line:
+IMPORTANT: your reply MUST end with exactly one line in this format:
 STATUS: SATISFIED (ready to conclude) | CONTINUE (want another round) | IMPASSE (fundamental disagreement, won't resolve)`;
 }
 
@@ -68,7 +74,7 @@ STATUS: SATISFIED (ready to conclude) | CONTINUE (want another round) | IMPASSE 
 export function generateSynthesisPrompt(query, finalResponses, roundCount, labels) {
     const modelCount = Object.keys(finalResponses).length;
     const responsesText = Object.entries(finalResponses)
-        .map(([id, response]) => `${labelFor(id, labels)}'s final answer:\n${response}`)
+        .map(([id, response]) => `${labelFor(id, labels)}'s final answer:\n${stripThink(response)}`)
         .join('\n\n');
 
     return `${modelCount} AI model${modelCount > 1 ? 's have' : ' has'} deliberated on this query:
@@ -99,7 +105,8 @@ export function parseStatus(responseText, participantLabels = []) {
     const names = participantLabels.length
         ? participantLabels.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
         : ['Claude', 'GPT', 'Gemini'];
-    if (new RegExp(`@(${names.join('|')})`, 'i').test(responseText)) {
+    // Ignore <think> chain-of-thought when looking for real mentions
+    if (new RegExp(`@(${names.join('|')})`, 'i').test(stripThink(responseText))) {
         return 'continue';
     }
 
@@ -117,13 +124,18 @@ export function parseStatus(responseText, participantLabels = []) {
 export function shouldProceedToSynthesis(responses) {
     const statuses = Object.values(responses).map(r => r.status);
 
-    // All must have a status
-    if (statuses.some(s => !s)) return false;
+    // Some models (reasoning/local ones especially) never emit a STATUS
+    // line despite instructions. They must not block consensus forever —
+    // only models that DID indicate a status get a vote.
+    const indicated = statuses.filter(Boolean);
 
-    // If any says CONTINUE, keep going
-    if (statuses.some(s => s === 'continue')) return false;
+    // No signal from anyone: keep going (MAX_ROUNDS still backstops)
+    if (indicated.length === 0) return false;
 
-    // All SATISFIED or mix of SATISFIED/IMPASSE
+    // If any voting model says CONTINUE, keep going
+    if (indicated.some(s => s === 'continue')) return false;
+
+    // All votes are SATISFIED or IMPASSE
     return true;
 }
 

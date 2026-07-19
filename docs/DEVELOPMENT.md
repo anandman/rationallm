@@ -142,6 +142,9 @@ npm run preview    # serve the production build locally
 - **UI is mode-dependent**: API config and the Synthesis-model selector
   render only in Automated mode (both are meaningless for manual copy-paste).
 - **STATUS parsing quirks** (`parseStatus` in `utils/prompts.js`): a missing
-  or mangled STATUS line yields `null`, which blocks consensus — deliberation
-  then only ends at MAX_ROUNDS. An `@Claude`/`@GPT`/`@Gemini` mention forces
-  the status to CONTINUE even if the model wrote SATISFIED.
+  or mangled STATUS line yields `null`; such models show a NO STATUS badge
+  and are excluded from the consensus vote (they'd otherwise block forever —
+  some reasoning/local models ignore the protocol). If NO model indicates,
+  rounds continue to MAX_ROUNDS. An `@<participant>` mention forces CONTINUE
+  even if the model wrote SATISFIED. `<think>…</think>` chain-of-thought is
+  stripped from cross-model prompts, synthesis input, and mention detection.

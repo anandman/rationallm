@@ -45,7 +45,21 @@ export function ModelCard({ info, prompt, response, status, loading, pending, er
             );
         }
 
-        if (!status) return null;
+        if (!status) {
+            // Response present but no STATUS line — the model ignored the
+            // protocol; it won't block consensus, but make that visible
+            if (response) {
+                return (
+                    <span
+                        className="px-2 py-0.5 rounded text-xs font-semibold text-text-muted bg-surface-hover"
+                        title="This model didn't end with a STATUS line; it doesn't get a consensus vote"
+                    >
+                        NO STATUS
+                    </span>
+                );
+            }
+            return null;
+        }
 
         const statusConfig = {
             continue: { label: 'CONTINUE', bg: '#4285f4' },
