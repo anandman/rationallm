@@ -250,7 +250,10 @@ function sleep(ms) {
  * @param {Array<Object>} modelConfigs - Array of {id, provider, model} participant configs
  * @param {string} getPrompt - The prompt to send (or function that takes a config)
  * @param {Object} apiKeys - Object containing API keys
- * @param {Function} onProgress - Callback for progress updates (participantId, status)
+ * @param {Function} onProgress - Callback (participantId, status, payload):
+ *   payload is the response text for 'complete', the message for 'error'.
+ *   Fired per model as it finishes so results can render without waiting
+ *   for the slowest model.
  * @param {Object} options - { serialProviders: ['ollama'] } providers whose
  *   calls run one at a time (local servers thrash when loading several models)
  * @returns {Promise<Object>} Object mapping participant id to response
@@ -266,7 +269,7 @@ export async function callMultipleModels(modelConfigs, getPrompt, apiKeys, onPro
             const prompt = typeof getPrompt === 'function' ? getPrompt(config) : getPrompt;
             const response = await callLLM(config, prompt, apiKeys);
             results[key] = { success: true, text: response };
-            onProgress?.(key, 'complete');
+            onProgress?.(key, 'complete', response);
         } catch (error) {
             results[key] = { success: false, error: error.message };
             onProgress?.(key, 'error', error.message);

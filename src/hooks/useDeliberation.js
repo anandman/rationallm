@@ -404,29 +404,23 @@ export function useDeliberation() {
             });
 
             // Call all pending models (local-server calls run serially when
-            // serialLocal is on, to avoid model-swap thrashing)
-            const results = await callMultipleModels(
+            // serialLocal is on). Each result renders as soon as its model
+            // finishes — no waiting for the slowest one.
+            await callMultipleModels(
                 modelConfigs,
                 getPromptForConfig,
                 apiKeys,
-                (id, status, error) => {
+                (id, status, payload) => {
                     if (status === 'loading') {
                         updateResponseState(id, { loading: true, pending: false });
+                    } else if (status === 'complete') {
+                        updateResponse(id, payload);
                     } else if (status === 'error') {
-                        updateResponseState(id, { loading: false, pending: false, error });
+                        updateResponseState(id, { loading: false, pending: false, error: payload });
                     }
                 },
                 { serialProviders: settings.serialLocal !== false ? ['ollama'] : [] }
             );
-
-            // Update responses
-            Object.entries(results).forEach(([id, result]) => {
-                if (result.success) {
-                    updateResponse(id, result.text);
-                } else {
-                    updateResponseState(id, { loading: false, pending: false, error: result.error });
-                }
-            });
 
         } catch (error) {
             console.error('Automated round failed:', error);

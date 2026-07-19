@@ -66,6 +66,7 @@ function App() {
             currentRound={state.currentRound}
             enabledModels={state.enabledModels}
             participants={state.participants}
+            rounds={state.rounds}
             responses={getCurrentResponses()}
             getPromptForModel={getPromptForModel}
             onUpdateResponse={updateResponse}

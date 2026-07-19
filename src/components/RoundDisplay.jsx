@@ -1,12 +1,14 @@
 import { useEffect } from 'react';
 import { ModelCard } from './ModelCard';
 import { ProgressIndicator } from './ProgressIndicator';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import { getParticipantInfo } from '../utils/models';
 
 export function RoundDisplay({
     currentRound,
     enabledModels,
     participants,
+    rounds,
     responses,
     getPromptForModel,
     onUpdateResponse,
@@ -56,6 +58,41 @@ export function RoundDisplay({
                     </span>
                 )}
             </h2>
+
+            {/* Previous rounds (collapsible) */}
+            {currentRound > 1 && (rounds || []).length > 1 && (
+                <div className="max-w-4xl mx-auto mb-8 space-y-2">
+                    {rounds.filter(r => r.number < currentRound).map(round => (
+                        <details key={round.number} className="bg-surface-alt rounded-xl border border-border overflow-hidden">
+                            <summary className="px-5 py-3 cursor-pointer text-sm font-medium text-text-muted hover:bg-surface-hover transition-colors select-none">
+                                Round {round.number} responses
+                            </summary>
+                            <div className="px-5 pb-5 space-y-4 border-t border-border pt-4">
+                                {enabledModels.map(id => {
+                                    const response = round.responses?.[id];
+                                    if (!response?.text) return null;
+                                    const info = getParticipantInfo(participants, id);
+                                    return (
+                                        <div key={id}>
+                                            <h4 className="font-medium mb-2 text-sm" style={{ color: info.color }}>
+                                                {info.label}
+                                                {response.status && (
+                                                    <span className="ml-2 text-xs px-2 py-0.5 rounded bg-surface text-text-muted">
+                                                        {response.status.toUpperCase()}
+                                                    </span>
+                                                )}
+                                            </h4>
+                                            <div className="text-sm">
+                                                <MarkdownRenderer content={response.text} />
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </details>
+                    ))}
+                </div>
+            )}
 
             {/* Model cards grid */}
             <div className={`
