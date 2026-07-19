@@ -46,6 +46,10 @@ npm run preview    # serve the production build locally
   errors; parallel fan-out to all models with per-model progress callbacks.
 - **Model registry** (`utils/models.js`): provider metadata, default model
   IDs (direct and OpenRouter forms), display names/colors.
+- **Ollama provider**: local models via an Ollama server's OpenAI-compatible
+  endpoint (`{url}/v1/chat/completions`). The server URL lives in
+  `apiKeys.ollama` (it's a URL, not a key) so availability/persistence reuse
+  the API-key plumbing. Never routed through OpenRouter.
 - **UI**: one component per phase (Setup, RoundDisplay, Synthesis, FinalView)
   plus HistorySidebar, FollowUpChat (post-synthesis chat with full context),
   markdown rendering, and an ErrorBoundary offering "Reset App Data".
@@ -108,6 +112,13 @@ npm run preview    # serve the production build locally
 - **Default model IDs go stale** (e.g. `grok-2`, `gpt-4o`); they're plain
   strings in `utils/models.js` — update them there, users can always
   override with custom IDs.
+- **Ollama needs CORS + plain HTTP**: the browser calls the Ollama server
+  directly, so the server must allow the app's origin
+  (`OLLAMA_ORIGINS=*` or the specific origin). The hosted HTTPS site cannot
+  call `http://host:11434` (mixed content) — Ollama works from local
+  dev/preview, or put the server behind HTTPS (e.g. `tailscale serve`).
+- **UI is mode-dependent**: API config and the Synthesis-model selector
+  render only in Automated mode (both are meaningless for manual copy-paste).
 - **STATUS parsing quirks** (`parseStatus` in `utils/prompts.js`): a missing
   or mangled STATUS line yields `null`, which blocks consensus — deliberation
   then only ends at MAX_ROUNDS. An `@Claude`/`@GPT`/`@Gemini` mention forces

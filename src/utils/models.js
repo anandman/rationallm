@@ -43,6 +43,13 @@ export const PROVIDERS = {
         baseUrl: 'https://api.deepseek.com/v1',
         keyPrefix: 'sk-',
         description: 'DeepSeek V3, DeepSeek R1, etc.'
+    },
+    ollama: {
+        // baseUrl comes from the user-entered server URL (stored in apiKeys.ollama)
+        name: 'Ollama',
+        baseUrl: null,
+        keyPrefix: 'http',
+        description: 'Local models via an Ollama server'
     }
 };
 
@@ -54,6 +61,7 @@ export const DEFAULT_MODELS = {
     xai: 'grok-2',
     mistral: 'mistral-large-latest',
     deepseek: 'deepseek-chat',
+    ollama: 'llama3.1',
     // OpenRouter uses provider/model format
     openrouter: {
         openai: 'openai/gpt-4o',
@@ -74,7 +82,8 @@ export const MODEL_DISPLAY = {
     google: { name: 'Google', color: '#4285f4', shortName: 'Gemini' },
     xai: { name: 'xAI', color: '#1da1f2', shortName: 'Grok' },
     mistral: { name: 'Mistral', color: '#ff7000', shortName: 'Mistral' },
-    deepseek: { name: 'DeepSeek', color: '#0066ff', shortName: 'DeepSeek' }
+    deepseek: { name: 'DeepSeek', color: '#0066ff', shortName: 'DeepSeek' },
+    ollama: { name: 'Ollama', color: '#64748b', shortName: 'Ollama' }
 };
 
 // Get OpenRouter model ID for a provider
@@ -114,6 +123,11 @@ export function createModelConfig(provider, customModel = null) {
 
 // Validate that we have the required API key for a provider
 export function hasApiKeyForProvider(apiKeys, provider, useOpenRouter = false) {
+    // Ollama is a local server; OpenRouter can't reach it, so it always
+    // needs its own server URL (stored in apiKeys.ollama)
+    if (provider === 'ollama') {
+        return !!apiKeys.ollama;
+    }
     if (useOpenRouter && apiKeys.openrouter) {
         return true;
     }
@@ -127,8 +141,9 @@ export function getAvailableProviders(apiKeys) {
         .filter(p => p !== 'openrouter' && apiKeys[p]);
 
     if (hasOpenRouter) {
-        // OpenRouter gives access to all providers
-        return Object.keys(MODEL_DISPLAY);
+        // OpenRouter gives access to all providers except Ollama (local server)
+        return Object.keys(MODEL_DISPLAY)
+            .filter(p => p !== 'ollama' || !!apiKeys.ollama);
     }
     return directProviders;
 }

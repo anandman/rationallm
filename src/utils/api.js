@@ -19,6 +19,15 @@ const RETRY_DELAY = 1000;
 export async function callLLM(config, prompt, apiKeys, useOpenRouter = false) {
     const { provider, model } = config;
 
+    // Ollama is a local server — always called directly, even when
+    // OpenRouter handles everything else. apiKeys.ollama holds its URL.
+    if (provider === 'ollama') {
+        if (!apiKeys.ollama) {
+            throw new Error('No Ollama server URL configured');
+        }
+        return callOllama(model, prompt, apiKeys.ollama);
+    }
+
     // Determine which API to use
     if (useOpenRouter && apiKeys.openrouter) {
         return callOpenRouter(provider, model, prompt, apiKeys.openrouter);
@@ -99,6 +108,35 @@ async function callOpenAICompatible(provider, model, prompt, apiKey) {
 
     if (data.error) {
         throw new Error(data.error.message || `${provider} API error`);
+    }
+
+    return data.choices[0]?.message?.content || '';
+}
+
+/**
+ * Call a local Ollama server via its OpenAI-compatible endpoint.
+ * No API key needed; serverUrl is the user-entered base (e.g. http://strixhalo:11434).
+ */
+async function callOllama(model, prompt, serverUrl) {
+    const baseUrl = serverUrl.replace(/\/+$/, '');
+    const modelId = getDirectModelId('ollama', model);
+
+    const response = await fetchWithRetry(`${baseUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: modelId,
+            messages: [{ role: 'user', content: prompt }],
+            max_tokens: 4096
+        })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+        throw new Error(data.error.message || 'Ollama API error');
     }
 
     return data.choices[0]?.message?.content || '';

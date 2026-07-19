@@ -40,7 +40,35 @@ export function SetupScreen({
                 </p>
             </div>
 
-            {/* API Keys Section */}
+            {/* Mode toggle */}
+            <div className="mb-8 flex items-center justify-between p-4 bg-surface-alt rounded-xl border border-border">
+                <div>
+                    <div className="font-medium">
+                        {settings.isAutomated ? 'Automated Mode' : 'Manual Mode'}
+                    </div>
+                    <div className="text-sm text-text-muted">
+                        {settings.isAutomated
+                            ? 'API calls run automatically'
+                            : 'Copy prompts and paste responses'
+                        }
+                    </div>
+                </div>
+                <button
+                    onClick={() => onSetSettings({ isAutomated: !settings.isAutomated })}
+                    className={`
+                        relative w-14 h-7 rounded-full transition-colors
+                        ${settings.isAutomated ? 'bg-[#10a37f]' : 'bg-surface-hover'}
+                    `}
+                >
+                    <div className={`
+                        absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform
+                        ${settings.isAutomated ? 'translate-x-8' : 'translate-x-1'}
+                    `} />
+                </button>
+            </div>
+
+            {/* API Keys Section — only relevant in automated mode */}
+            {settings.isAutomated && (
             <div className="mb-8">
                 <button
                     onClick={() => setShowApiKeys(!showApiKeys)}
@@ -88,7 +116,7 @@ export function SetupScreen({
 
                         {/* Direct API Keys */}
                         <div className="grid grid-cols-2 gap-3">
-                            {Object.entries(PROVIDERS).filter(([id]) => id !== 'openrouter').map(([id, provider]) => (
+                            {Object.entries(PROVIDERS).filter(([id]) => id !== 'openrouter' && id !== 'ollama').map(([id, provider]) => (
                                 <div key={id}>
                                     <label className="block text-xs font-medium text-text-muted mb-1">
                                         {provider.name}
@@ -103,9 +131,24 @@ export function SetupScreen({
                                 </div>
                             ))}
                         </div>
+
+                        {/* Ollama — local server URL, not an API key */}
+                        <div>
+                            <label className="block text-xs font-medium text-text-muted mb-1">
+                                Ollama Server URL <span className="opacity-70">(local models, no key needed)</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={apiKeys.ollama || ''}
+                                onChange={(e) => onSetApiKeys({ ollama: e.target.value })}
+                                placeholder="http://localhost:11434"
+                                className="w-full px-2.5 py-1.5 bg-surface border border-border rounded-lg text-sm focus:border-[#4285f4] transition-colors"
+                            />
+                        </div>
                     </div>
                 )}
             </div>
+            )}
 
             {/* Query input */}
             <div className="mb-8">
@@ -199,50 +242,25 @@ export function SetupScreen({
                 </div>
             )}
 
-            {/* Synthesis model */}
-            <div className="mb-8">
-                <label className="block text-sm font-medium text-text-muted mb-2">
-                    Synthesis model
-                </label>
-                <select
-                    value={synthesisModel.provider}
-                    onChange={(e) => onSetSynthesisModel(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-surface-alt border border-border rounded-lg text-sm focus:border-[#4285f4] transition-colors"
-                >
-                    {availableProviders.map(provider => (
-                        <option key={provider} value={provider}>
-                            {MODEL_DISPLAY[provider].name}
-                        </option>
-                    ))}
-                </select>
-            </div>
-
-            {/* Mode toggle */}
-            <div className="mb-8 flex items-center justify-between p-4 bg-surface-alt rounded-xl border border-border">
-                <div>
-                    <div className="font-medium">
-                        {settings.isAutomated ? 'Automated Mode' : 'Manual Mode'}
-                    </div>
-                    <div className="text-sm text-text-muted">
-                        {settings.isAutomated
-                            ? 'API calls run automatically'
-                            : 'Copy prompts and paste responses'
-                        }
-                    </div>
+            {/* Synthesis model — only meaningful when the app runs the synthesis call */}
+            {settings.isAutomated && (
+                <div className="mb-8">
+                    <label className="block text-sm font-medium text-text-muted mb-2">
+                        Synthesis model
+                    </label>
+                    <select
+                        value={synthesisModel.provider}
+                        onChange={(e) => onSetSynthesisModel(e.target.value)}
+                        className="w-full px-3 py-2.5 bg-surface-alt border border-border rounded-lg text-sm focus:border-[#4285f4] transition-colors"
+                    >
+                        {availableProviders.map(provider => (
+                            <option key={provider} value={provider}>
+                                {MODEL_DISPLAY[provider].name}
+                            </option>
+                        ))}
+                    </select>
                 </div>
-                <button
-                    onClick={() => onSetSettings({ isAutomated: !settings.isAutomated })}
-                    className={`
-                        relative w-14 h-7 rounded-full transition-colors
-                        ${settings.isAutomated ? 'bg-[#10a37f]' : 'bg-surface-hover'}
-                    `}
-                >
-                    <div className={`
-                        absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-transform
-                        ${settings.isAutomated ? 'translate-x-8' : 'translate-x-1'}
-                    `} />
-                </button>
-            </div>
+            )}
 
             {/* Warning if automation not available */}
             {settings.isAutomated && !canAutomate() && (
