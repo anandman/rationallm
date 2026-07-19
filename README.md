@@ -93,6 +93,19 @@ To deploy your own version to GitHub Pages:
 4.  Select the `main` branch and the `/docs` folder.
 5.  Click **Save**.
 
+## Development
+
+```bash
+npm install        # setup
+npm run dev        # dev server at http://localhost:5173
+npm run lint       # ESLint
+npm run build      # build into docs/ (the GitHub Pages root)
+```
+
+Deploying = `npm run build`, commit the `docs/` changes, push to `main`.
+See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for architecture, design
+decisions, and gotchas.
+
 ## Credits
 
 Created by **Anand Mandapati**.

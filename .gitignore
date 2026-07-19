@@ -25,3 +25,12 @@ dist-ssr
 
 # Test config (contains API keys)
 test.config.json
+
+# Agent config (local only — generated from docs/DEVELOPMENT.md)
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+.cursorrules
+HANDOFF.md
+.claude/
+.gemini/
