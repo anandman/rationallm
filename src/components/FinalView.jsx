@@ -75,7 +75,7 @@ ${deliberation.synthesis?.response || ''}
 
             {/* Rounds (collapsible) */}
             <div className="space-y-4 mb-6">
-                {deliberation.rounds.map((round, index) => {
+                {deliberation.rounds.map((round) => {
                     const isExpanded = expandedRounds[round.number];
 
                     return (

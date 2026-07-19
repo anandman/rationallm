@@ -8,6 +8,8 @@ export default defineConfig({
   base: './',
   build: {
     outDir: 'docs',
-    emptyOutDir: true
+    // docs/ also holds DEVELOPMENT.md (GitHub Pages serves this dir);
+    // the build script clears only docs/assets to avoid deleting it
+    emptyOutDir: false
   }
 })
