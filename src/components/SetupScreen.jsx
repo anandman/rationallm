@@ -182,6 +182,17 @@ export function SetupScreen({
                                 placeholder="http://localhost:11434"
                                 className="w-full px-2.5 py-1.5 bg-surface border border-border rounded-lg text-sm focus:border-[#4285f4] transition-colors"
                             />
+                            {apiKeys.ollama && (
+                                <label className="flex items-center gap-2 mt-2 text-xs text-text-muted">
+                                    <input
+                                        type="checkbox"
+                                        checked={settings.serialLocal !== false}
+                                        onChange={(e) => onSetSettings({ serialLocal: e.target.checked })}
+                                        className="rounded"
+                                    />
+                                    Run local models one at a time (avoids model-swap thrashing; uncheck if your server can hold several models in memory)
+                                </label>
+                            )}
                         </div>
                     </div>
                 )}
@@ -212,14 +223,17 @@ export function SetupScreen({
                     <div className="flex flex-wrap gap-2 mb-3">
                         {enabledModels.map(id => {
                             const info = getParticipantInfo(participants, id);
+                            const chipLabel = settings.isAutomated && !info.model
+                                ? `${info.label} default`
+                                : info.label;
                             return (
                                 <span
                                     key={id}
                                     className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg text-sm font-medium text-white shadow"
                                     style={{ backgroundColor: info.color }}
-                                    title={info.model ? `${PROVIDERS[info.provider]?.name || info.provider}: ${info.model}` : info.label}
+                                    title={info.model ? `${PROVIDERS[info.provider]?.name || info.provider}: ${info.model}` : chipLabel}
                                 >
-                                    {info.label}
+                                    {chipLabel}
                                     <button
                                         onClick={() => onToggleModel(id)}
                                         className="hover:bg-white/25 rounded px-1 leading-none"

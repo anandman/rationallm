@@ -9,7 +9,7 @@ import {
     generateId
 } from '../utils/prompts';
 import { callLLM, callMultipleModels } from '../utils/api';
-import { makeParticipant, getParticipantInfo, hasApiKeyForProvider } from '../utils/models';
+import { makeParticipant, getParticipantInfo, hasApiKeyForProvider, DEFAULT_MODELS } from '../utils/models';
 
 const STORAGE_KEY = 'rationallm_current';
 const HISTORY_KEY = 'rationallm_history';
@@ -41,7 +41,10 @@ const createInitialState = () => ({
 });
 
 const createInitialSettings = () => ({
-    isAutomated: true
+    isAutomated: true,
+    // Local servers load one model at a time; parallel requests thrash.
+    // Off = fire local calls in parallel (server with VRAM to spare).
+    serialLocal: true
 });
 
 // Old state shapes keyed everything by bare provider id with an optional
@@ -204,9 +207,12 @@ export function useDeliberation() {
                 const nextEnabled = [...prev.enabledModels];
                 const nextParticipants = { ...prev.participants };
                 newlyEnabled.forEach(p => {
-                    if (!nextEnabled.includes(p)) {
-                        nextEnabled.push(p);
-                        nextParticipants[p] = makeParticipant(p);
+                    // Pin the provider's default model explicitly so the
+                    // participant is labeled with a concrete model name
+                    const participant = makeParticipant(p, DEFAULT_MODELS[p] || null);
+                    if (!nextEnabled.includes(participant.id)) {
+                        nextEnabled.push(participant.id);
+                        nextParticipants[participant.id] = participant;
                     }
                 });
                 return { ...prev, enabledModels: nextEnabled, participants: nextParticipants };
@@ -362,7 +368,13 @@ export function useDeliberation() {
         setIsRunning(true);
 
         try {
-            const modelConfigs = state.enabledModels.map(id => getModelConfig(id));
+            // Only call participants without a successful response this round,
+            // so "Retry Failed" doesn't re-bill the models that succeeded
+            const currentResponses = state.rounds[state.currentRound - 1]?.responses || {};
+            const targets = state.enabledModels.filter(id => !currentResponses[id]?.text?.trim());
+            if (targets.length === 0) return;
+
+            const modelConfigs = targets.map(id => getModelConfig(id));
             const labels = labelsOf(state);
 
             // Generate prompts for each participant
@@ -385,11 +397,12 @@ export function useDeliberation() {
             };
 
             // Update loading states
-            state.enabledModels.forEach(id => {
+            targets.forEach(id => {
                 updateResponseState(id, { loading: true, error: null });
             });
 
-            // Call all models
+            // Call all pending models (local-server calls run serially when
+            // serialLocal is on, to avoid model-swap thrashing)
             const results = await callMultipleModels(
                 modelConfigs,
                 getPromptForConfig,
@@ -400,7 +413,8 @@ export function useDeliberation() {
                     } else if (status === 'error') {
                         updateResponseState(id, { loading: false, error });
                     }
-                }
+                },
+                { serialProviders: settings.serialLocal !== false ? ['ollama'] : [] }
             );
 
             // Update responses
@@ -417,7 +431,7 @@ export function useDeliberation() {
         } finally {
             setIsRunning(false);
         }
-    }, [isRunning, state, getModelConfig, apiKeys, updateResponse, updateResponseState]);
+    }, [isRunning, state, getModelConfig, apiKeys, settings.serialLocal, updateResponse, updateResponseState]);
 
     // Proceed to next round
     const nextRound = useCallback(() => {

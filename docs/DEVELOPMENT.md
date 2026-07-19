@@ -122,9 +122,14 @@ npm run preview    # serve the production build locally
 - **Adding a provider** touches PROVIDERS/DEFAULT_MODELS/MODEL_DISPLAY in
   `utils/models.js`, a case in `callLLM`, and possibly `modelList.js` if its
   listing isn't OpenAI-style.
-- **Concurrent local models serialize**: several Ollama participants in one
-  round all fire at once; the Ollama server queues generation on the GPU, so
-  a 3-model round takes roughly 3× one model's time. Expected, not a bug.
+- **Local models run serially by default** (`settings.serialLocal`, toggle
+  under the Local Server URL field): parallel requests make a local server
+  swap models in and out. Cloud calls still run in parallel alongside the
+  local chain. A 3-local-model round takes ~3× one model's time regardless —
+  generation contends for the same GPU.
+- **Automated rounds only call pending participants**: `runAutomatedRound`
+  skips participants that already have a response this round, so "Retry
+  Failed" re-bills only the failures. Don't "simplify" it back to all-models.
 - **Ollama needs CORS + plain HTTP**: the browser calls the Ollama server
   directly, so the server must allow the app's origin
   (`OLLAMA_ORIGINS=*` or the specific origin). The hosted HTTPS site cannot

@@ -234,12 +234,15 @@ function sleep(ms) {
  * @param {string} getPrompt - The prompt to send (or function that takes a config)
  * @param {Object} apiKeys - Object containing API keys
  * @param {Function} onProgress - Callback for progress updates (participantId, status)
+ * @param {Object} options - { serialProviders: ['ollama'] } providers whose
+ *   calls run one at a time (local servers thrash when loading several models)
  * @returns {Promise<Object>} Object mapping participant id to response
  */
-export async function callMultipleModels(modelConfigs, getPrompt, apiKeys, onProgress) {
+export async function callMultipleModels(modelConfigs, getPrompt, apiKeys, onProgress, options = {}) {
     const results = {};
+    const serialSet = new Set(options.serialProviders || []);
 
-    const promises = modelConfigs.map(async (config) => {
+    const run = async (config) => {
         const key = config.id || config.provider;
         try {
             onProgress?.(key, 'loading');
@@ -251,8 +254,15 @@ export async function callMultipleModels(modelConfigs, getPrompt, apiKeys, onPro
             results[key] = { success: false, error: error.message };
             onProgress?.(key, 'error', error.message);
         }
-    });
+    };
 
-    await Promise.all(promises);
+    const parallel = modelConfigs.filter(c => !serialSet.has(c.provider));
+    const serial = modelConfigs.filter(c => serialSet.has(c.provider));
+
+    await Promise.all([
+        ...parallel.map(run),
+        // Serial group runs as a chain, concurrently with the parallel group
+        (async () => { for (const config of serial) await run(config); })()
+    ]);
     return results;
 }

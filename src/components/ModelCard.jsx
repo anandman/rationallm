@@ -7,7 +7,8 @@ export function ModelCard({ info, prompt, response, status, loading, error, onRe
     const [viewMode, setViewMode] = useState((isAutomated || response) ? 'preview' : 'edit');
 
     const colorVar = info?.color || '#64748b';
-    const modelName = info?.label || 'Model';
+    // No explicit model means the provider's default is used — say so
+    const modelName = (info?.label || 'Model') + (isAutomated && info && !info.model ? ' default' : '');
 
     const handleCopy = async () => {
         try {

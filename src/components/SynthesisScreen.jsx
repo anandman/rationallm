@@ -21,8 +21,9 @@ export function SynthesisScreen({
     const [showPrompt, setShowPrompt] = useState(!isAutomated);
 
     const providerDisplay = MODEL_DISPLAY[synthesisModel?.provider];
+    const providerName = providerDisplay?.shortName || synthesisModel?.provider || 'Model';
     const synthesisDisplay = {
-        shortName: synthesisModel?.label || providerDisplay?.shortName || synthesisModel?.provider || 'Model',
+        shortName: synthesisModel?.label || `${providerName} default`,
         color: providerDisplay?.color || '#64748b'
     };
 
