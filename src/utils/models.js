@@ -61,7 +61,8 @@ export const DEFAULT_MODELS = {
     xai: 'grok-2',
     mistral: 'mistral-large-latest',
     deepseek: 'deepseek-chat',
-    ollama: 'llama3.1',
+    // no ollama entry: its default resolves to the server's first installed
+    // model at call time (see callLLM)
     // OpenRouter uses provider/model format
     openrouter: {
         openai: 'openai/gpt-4o',

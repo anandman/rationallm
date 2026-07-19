@@ -2,6 +2,7 @@
 // Supports OpenRouter and direct API calls to various providers
 
 import { PROVIDERS, getOpenRouterModelId, getDirectModelId } from './models.js';
+import { listModels } from './modelList.js';
 
 const MAX_RETRIES = 2;
 const RETRY_DELAY = 1000;
@@ -16,13 +17,29 @@ const RETRY_DELAY = 1000;
  * @returns {Promise<string>} The model's response text
  */
 export async function callLLM(config, prompt, apiKeys) {
-    const { provider, model } = config;
+    const { provider } = config;
+    let { model } = config;
 
     const apiKey = apiKeys[provider];
     if (!apiKey) {
         throw new Error(provider === 'ollama'
             ? 'No Ollama server URL configured'
             : `No API key configured for ${provider}`);
+    }
+
+    // "Provider default" participants have no explicit model; endpoints with
+    // no meaningful hardcoded default resolve one at call time
+    if (!model) {
+        if (provider === 'openrouter') {
+            // OpenRouter's auto-router picks a suitable model per request
+            model = 'openrouter/auto';
+        } else if (provider === 'ollama') {
+            const models = await listModels('ollama', apiKeys);
+            if (models.length === 0) {
+                throw new Error('No models installed on the local server');
+            }
+            model = models[0].id;
+        }
     }
 
     switch (provider) {

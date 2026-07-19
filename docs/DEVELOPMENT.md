@@ -122,6 +122,10 @@ npm run preview    # serve the production build locally
 - **Adding a provider** touches PROVIDERS/DEFAULT_MODELS/MODEL_DISPLAY in
   `utils/models.js`, a case in `callLLM`, and possibly `modelList.js` if its
   listing isn't OpenAI-style.
+- **"Provider default" participants resolve late**: OpenRouter default →
+  `openrouter/auto` (its auto-router); Ollama default → the server's first
+  installed model, fetched at call time. Other providers use the hardcoded
+  DEFAULT_MODELS entries.
 - **Local models run serially by default** (`settings.serialLocal`, toggle
   under the Local Server URL field): parallel requests make a local server
   swap models in and out. Cloud calls still run in parallel alongside the
