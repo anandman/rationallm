@@ -30,8 +30,19 @@ npm run preview    # serve the production build locally
 ## Architecture (capabilities)
 - **Deliberation engine** (`useDeliberation` hook, ~600 lines): phase state
   machine `setup → deliberation → synthesis → complete`; tracks rounds with
-  per-model responses; decides when synthesis is available; auto-saves
-  everything to localStorage; session history with load/delete.
+  per-participant responses; decides when synthesis is available; auto-saves
+  everything to localStorage; session history with load/delete; migrates old
+  provider-keyed state shapes on load.
+- **Participants, not providers**: everything is keyed by participant id
+  (`provider:model`), with a `participants` map holding
+  `{provider, model, label, color}`. Several participants can share one
+  endpoint — e.g. three OpenRouter models or three Ollama models
+  deliberating. Manual-mode quick-picks use bare provider ids.
+- **Model discovery** (`utils/modelList.js`): fetches each endpoint's live
+  model list for dropdown pickers — OpenAI-style GET /models for
+  OpenRouter/Ollama-vLLM/OpenAI/xAI/Mistral/DeepSeek, special-cased
+  Anthropic and Google listings; session-cached; falls back to a custom
+  model-ID text input if the fetch fails.
 - **Prompt generation**: Round 1 (plain query + status request), Round N
   (query + own previous answer + all other models' answers + critique
   instructions), and synthesis (merge final answers). Cross-model questions
@@ -68,8 +79,10 @@ npm run preview    # serve the production build locally
   `docs/assets/`. Do not re-enable `emptyOutDir`.
 - **STATUS text protocol over structured output** so manual copy-paste mode
   and automated mode share one code path.
-- **OpenRouter first**: one key covers every model; direct provider keys are
-  the fallback. `useOpenRouter` setting switches routing globally.
+- **OpenRouter is just an endpoint** (changed 2026-07-19, user-initiated):
+  the old global "Use OpenRouter for all calls" flag is gone. Every
+  participant is explicitly bound to one endpoint + model; OpenRouter is
+  simply the endpoint with the biggest catalog.
 - **Recovery over prevention**: model failure mid-deliberation offers
   "Exclude this model"; corrupted localStorage is handled by the
   ErrorBoundary reset rather than migrations.
@@ -79,9 +92,9 @@ npm run preview    # serve the production build locally
   `useDeliberation`, components stay presentational.
 - Tailwind utility classes with custom design tokens (`bg-surface`,
   `border-border`, `text-text-muted`, …) defined in `src/index.css`.
-- Provider IDs (`openai`, `anthropic`, `google`, `xai`, `mistral`,
-  `deepseek`, `openrouter`) are the universal keys across models, API keys,
-  responses, and display maps.
+- Participant ids (`provider:model`, or bare provider for manual mode) are
+  the universal keys across responses and selection; provider ids key the
+  API-key map and endpoint registry.
 - JSDoc comments on utility functions; no TypeScript.
 
 ## Safety & Permissions
@@ -106,12 +119,12 @@ npm run preview    # serve the production build locally
   `npm run build` and commits `docs/`. Check `git status` for unbuilt work.
 - **ESLint must ignore `docs/`** (it does, in eslint.config.js) or minified
   bundles produce hundreds of false errors.
-- **Adding a provider** touches three maps in `utils/models.js` (PROVIDERS,
-  DEFAULT_MODELS incl. the OpenRouter sub-map, MODEL_DISPLAY) plus possibly
-  a case in `callLLM`.
-- **Default model IDs go stale** (e.g. `grok-2`, `gpt-4o`); they're plain
-  strings in `utils/models.js` — update them there, users can always
-  override with custom IDs.
+- **Adding a provider** touches PROVIDERS/DEFAULT_MODELS/MODEL_DISPLAY in
+  `utils/models.js`, a case in `callLLM`, and possibly `modelList.js` if its
+  listing isn't OpenAI-style.
+- **Concurrent local models serialize**: several Ollama participants in one
+  round all fire at once; the Ollama server queues generation on the GPU, so
+  a 3-model round takes roughly 3× one model's time. Expected, not a bug.
 - **Ollama needs CORS + plain HTTP**: the browser calls the Ollama server
   directly, so the server must allow the app's origin
   (`OLLAMA_ORIGINS=*` or the specific origin). The hosted HTTPS site cannot

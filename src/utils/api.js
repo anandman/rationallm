@@ -9,37 +9,27 @@ const RETRY_DELAY = 1000;
 /**
  * Call an LLM with the given prompt
  * @param {Object} config - Model configuration
- * @param {string} config.provider - Provider ID (openai, anthropic, etc.)
- * @param {string} config.model - Model ID (can be custom)
+ * @param {string} config.provider - Endpoint ID (openai, anthropic, openrouter, ollama, etc.)
+ * @param {string} config.model - Model ID on that endpoint
  * @param {string} prompt - The prompt to send
- * @param {Object} apiKeys - Object containing API keys
- * @param {boolean} useOpenRouter - Whether to use OpenRouter
+ * @param {Object} apiKeys - Object containing API keys (apiKeys.ollama is a server URL)
  * @returns {Promise<string>} The model's response text
  */
-export async function callLLM(config, prompt, apiKeys, useOpenRouter = false) {
+export async function callLLM(config, prompt, apiKeys) {
     const { provider, model } = config;
 
-    // Ollama is a local server — always called directly, even when
-    // OpenRouter handles everything else. apiKeys.ollama holds its URL.
-    if (provider === 'ollama') {
-        if (!apiKeys.ollama) {
-            throw new Error('No Ollama server URL configured');
-        }
-        return callOllama(model, prompt, apiKeys.ollama);
-    }
-
-    // Determine which API to use
-    if (useOpenRouter && apiKeys.openrouter) {
-        return callOpenRouter(provider, model, prompt, apiKeys.openrouter);
-    }
-
-    // Direct API calls
     const apiKey = apiKeys[provider];
     if (!apiKey) {
-        throw new Error(`No API key configured for ${provider}`);
+        throw new Error(provider === 'ollama'
+            ? 'No Ollama server URL configured'
+            : `No API key configured for ${provider}`);
     }
 
     switch (provider) {
+        case 'ollama':
+            return callOllama(model, prompt, apiKey);
+        case 'openrouter':
+            return callOpenRouter(model, prompt, apiKey);
         case 'openai':
         case 'xai':
         case 'mistral':
@@ -57,8 +47,10 @@ export async function callLLM(config, prompt, apiKeys, useOpenRouter = false) {
 /**
  * Call OpenRouter API
  */
-async function callOpenRouter(provider, model, prompt, apiKey) {
-    const modelId = getOpenRouterModelId(provider, model);
+async function callOpenRouter(model, prompt, apiKey) {
+    // model is a full OpenRouter ID from the model picker; fall back to the
+    // legacy provider-shorthand mapping for migrated old sessions
+    const modelId = model?.includes('/') ? model : getOpenRouterModelId('openai', model);
 
     const response = await fetchWithRetry('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
@@ -238,27 +230,26 @@ function sleep(ms) {
 
 /**
  * Call multiple models in parallel
- * @param {Array<Object>} modelConfigs - Array of model configurations
- * @param {string} prompt - The prompt to send (or function that takes modelConfig)
+ * @param {Array<Object>} modelConfigs - Array of {id, provider, model} participant configs
+ * @param {string} getPrompt - The prompt to send (or function that takes a config)
  * @param {Object} apiKeys - Object containing API keys
- * @param {boolean} useOpenRouter - Whether to use OpenRouter
- * @param {Function} onProgress - Callback for progress updates (modelId, status)
- * @returns {Promise<Object>} Object mapping provider to response
+ * @param {Function} onProgress - Callback for progress updates (participantId, status)
+ * @returns {Promise<Object>} Object mapping participant id to response
  */
-export async function callMultipleModels(modelConfigs, getPrompt, apiKeys, useOpenRouter, onProgress) {
+export async function callMultipleModels(modelConfigs, getPrompt, apiKeys, onProgress) {
     const results = {};
 
     const promises = modelConfigs.map(async (config) => {
-        const { provider } = config;
+        const key = config.id || config.provider;
         try {
-            onProgress?.(provider, 'loading');
+            onProgress?.(key, 'loading');
             const prompt = typeof getPrompt === 'function' ? getPrompt(config) : getPrompt;
-            const response = await callLLM(config, prompt, apiKeys, useOpenRouter);
-            results[provider] = { success: true, text: response };
-            onProgress?.(provider, 'complete');
+            const response = await callLLM(config, prompt, apiKeys);
+            results[key] = { success: true, text: response };
+            onProgress?.(key, 'complete');
         } catch (error) {
-            results[provider] = { success: false, error: error.message };
-            onProgress?.(provider, 'error', error.message);
+            results[key] = { success: false, error: error.message };
+            onProgress?.(key, 'error', error.message);
         }
     });
 

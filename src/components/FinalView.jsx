@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { ProgressIndicator } from './ProgressIndicator';
 import { FollowUpChat } from './FollowUpChat';
-import { MODEL_NAMES, exportAsMarkdown } from '../utils/prompts';
+import { exportAsMarkdown } from '../utils/prompts';
+import { getParticipantInfo, hasApiKeyForProvider } from '../utils/models';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
-export function FinalView({ deliberation, onStartNew, apiKeys, settings }) {
+export function FinalView({ deliberation, onStartNew, apiKeys }) {
     const [copiedMarkdown, setCopiedMarkdown] = useState(false);
     const [copiedContext, setCopiedContext] = useState(false);
     const [expandedRounds, setExpandedRounds] = useState({});
@@ -46,10 +47,11 @@ ${deliberation.synthesis?.response || ''}
         }
     };
 
-    // Check if user has API keys for follow-up chat
-    const hasApiKeys = settings?.useOpenRouter
-        ? !!apiKeys?.openrouter
-        : deliberation.enabledModels.some(m => apiKeys?.[m]);
+    // Follow-up chat needs at least one participant whose endpoint has a key
+    const chatParticipants = deliberation.enabledModels
+        .map(id => getParticipantInfo(deliberation.participants, id))
+        .filter(info => hasApiKeyForProvider(apiKeys, info.provider));
+    const hasApiKeys = chatParticipants.length > 0;
 
     return (
         <div className="max-w-4xl mx-auto">
@@ -98,14 +100,15 @@ ${deliberation.synthesis?.response || ''}
                                     {deliberation.enabledModels.map(modelId => {
                                         const response = round.responses[modelId];
                                         if (!response?.text) return null;
+                                        const info = getParticipantInfo(deliberation.participants, modelId);
 
                                         return (
                                             <div key={modelId}>
                                                 <h4
                                                     className="font-medium mb-2"
-                                                    style={{ color: `var(--color-${modelId})` }}
+                                                    style={{ color: info.color }}
                                                 >
-                                                    {MODEL_NAMES[modelId]}
+                                                    {info.label}
                                                     {response.status && (
                                                         <span className="ml-2 text-xs px-2 py-0.5 rounded bg-surface text-text-muted">
                                                             {response.status.toUpperCase()}
@@ -173,9 +176,8 @@ ${deliberation.synthesis?.response || ''}
                     <FollowUpChat
                         query={deliberation.query}
                         synthesis={deliberation.synthesis.response}
-                        availableModels={deliberation.enabledModels}
+                        availableModels={chatParticipants}
                         apiKeys={apiKeys}
-                        useOpenRouter={settings?.useOpenRouter}
                     />
                 </div>
             )}

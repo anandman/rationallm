@@ -1,10 +1,12 @@
 import { useEffect } from 'react';
 import { ModelCard } from './ModelCard';
 import { ProgressIndicator } from './ProgressIndicator';
+import { getParticipantInfo } from '../utils/models';
 
 export function RoundDisplay({
     currentRound,
     enabledModels,
+    participants,
     responses,
     getPromptForModel,
     onUpdateResponse,
@@ -65,7 +67,7 @@ export function RoundDisplay({
                 {enabledModels.map(modelId => (
                     <ModelCard
                         key={modelId}
-                        modelId={modelId}
+                        info={getParticipantInfo(participants, modelId)}
                         prompt={getPromptForModel(modelId)}
                         response={responses[modelId]?.text || ''}
                         status={responses[modelId]?.status}

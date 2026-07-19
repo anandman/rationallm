@@ -1,23 +1,26 @@
-import { useState } from 'react';
-import { MODEL_DISPLAY, PROVIDERS, getAvailableProviders } from '../utils/models';
+import { useState, useEffect, useRef } from 'react';
+import { MODEL_DISPLAY, PROVIDERS, getAvailableProviders, getParticipantInfo, modelLabel } from '../utils/models';
+import { listModels } from '../utils/modelList';
+
+const CUSTOM = '__custom__';
+const MAX_MODELS = 5;
 
 export function SetupScreen({
     query,
     enabledModels,
-    modelConfigs,
+    participants,
     synthesisModel,
     apiKeys,
     settings,
     onQueryChange,
     onToggleModel,
-    onSetModelConfig,
+    onAddParticipant,
     onSetSynthesisModel,
     onSetApiKeys,
     onSetSettings,
     onStart,
     canAutomate
 }) {
-    const allProviders = Object.keys(MODEL_DISPLAY);
     const availableProviders = getAvailableProviders(apiKeys);
 
     // Auto-expand if automated mode is on and we have no keys
@@ -25,8 +28,54 @@ export function SetupScreen({
     const shouldExpandApiKeys = settings.isAutomated && !hasAnyApiKey;
 
     const [showApiKeys, setShowApiKeys] = useState(shouldExpandApiKeys);
-    const [showAdvanced, setShowAdvanced] = useState(false);
     const canStart = query.trim().length > 0 && enabledModels.length > 0;
+    const atMax = enabledModels.length >= MAX_MODELS;
+
+    // Live model lists per endpoint: { provider: { error?, models? } }
+    // (a selected provider with no entry yet means the fetch is in flight)
+    const [lists, setLists] = useState({});
+    const inflight = useRef(new Set());
+
+    // --- Add-model picker state (automated mode) ---
+    const [pickerProvider, setPickerProvider] = useState('');
+    const [pickerModel, setPickerModel] = useState('');
+    const [customModel, setCustomModel] = useState('');
+
+    // Keep the picker pointed at a usable endpoint (derived, not synced state)
+    const effectiveProvider = availableProviders.includes(pickerProvider)
+        ? pickerProvider
+        : (availableProviders[0] || '');
+
+    const synthesisProvider = availableProviders.includes(synthesisModel?.provider)
+        ? synthesisModel.provider
+        : null;
+
+    // Fetch model lists for whichever endpoints the pickers point at.
+    // State updates happen only in promise callbacks; a ref dedupes fetches.
+    useEffect(() => {
+        if (!settings.isAutomated) return;
+        [effectiveProvider, synthesisProvider].filter(Boolean).forEach(p => {
+            if (lists[p] || inflight.current.has(p)) return;
+            inflight.current.add(p);
+            listModels(p, apiKeys)
+                .then(models => setLists(prev => ({ ...prev, [p]: { models } })))
+                .catch(err => setLists(prev => ({ ...prev, [p]: { error: err.message } })))
+                .finally(() => inflight.current.delete(p));
+        });
+    }, [settings.isAutomated, effectiveProvider, synthesisProvider, lists, apiKeys]);
+
+    const pickerList = lists[effectiveProvider];
+    const synthesisList = synthesisProvider ? lists[synthesisProvider] : null;
+
+    const handleAdd = () => {
+        const model = pickerModel === CUSTOM ? customModel.trim() : pickerModel;
+        if (!effectiveProvider || !model) return;
+        onAddParticipant(effectiveProvider, model);
+        setPickerModel('');
+        setCustomModel('');
+    };
+
+    const selectClass = "px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:border-[#4285f4] transition-colors";
 
     return (
         <div className="max-w-3xl mx-auto">
@@ -85,7 +134,7 @@ export function SetupScreen({
                         {/* OpenRouter (recommended) */}
                         <div>
                             <label className="block text-sm font-medium mb-1.5">
-                                OpenRouter Key <span className="text-text-muted">(ONE key accesses ALL models)</span>
+                                OpenRouter Key <span className="text-text-muted">(ONE key accesses 400+ models)</span>
                             </label>
                             <input
                                 type="password"
@@ -94,17 +143,6 @@ export function SetupScreen({
                                 placeholder="sk-or-v1-..."
                                 className="w-full px-3 py-2 bg-surface border border-border rounded-lg text-sm focus:border-[#4285f4] transition-colors"
                             />
-                            {apiKeys.openrouter && (
-                                <label className="flex items-center gap-2 mt-2 text-sm">
-                                    <input
-                                        type="checkbox"
-                                        checked={settings.useOpenRouter}
-                                        onChange={(e) => onSetSettings({ useOpenRouter: e.target.checked })}
-                                        className="rounded"
-                                    />
-                                    Use OpenRouter for all calls
-                                </label>
-                            )}
                         </div>
 
                         {/* Divider */}
@@ -132,10 +170,10 @@ export function SetupScreen({
                             ))}
                         </div>
 
-                        {/* Ollama — local server URL, not an API key */}
+                        {/* Local server — Ollama, vLLM, LM Studio, etc. */}
                         <div>
                             <label className="block text-xs font-medium text-text-muted mb-1">
-                                Ollama Server URL <span className="opacity-70">(local models, no key needed)</span>
+                                Local Server URL <span className="opacity-70">(Ollama, vLLM, LM Studio — no key needed)</span>
                             </label>
                             <input
                                 type="text"
@@ -163,109 +201,174 @@ export function SetupScreen({
                 />
             </div>
 
-            {/* Model selection */}
+            {/* Deliberation models */}
             <div className="mb-6">
                 <label className="block text-sm font-medium text-text-muted mb-3">
-                    Select deliberation models
+                    Deliberation models {enabledModels.length > 0 && `(${enabledModels.length}/${MAX_MODELS})`}
                 </label>
-                <div className="flex flex-wrap gap-2">
-                    {allProviders.map(provider => {
-                        const isEnabled = enabledModels.includes(provider);
-                        const display = MODEL_DISPLAY[provider];
-                        const hasKey = availableProviders.includes(provider);
 
-                        const isLocked = settings.isAutomated && !hasKey && !isEnabled;
-                        const isMaxed = enabledModels.length >= 5 && !isEnabled;
-                        const isDisabled = isLocked || isMaxed;
+                {/* Selected participants */}
+                {enabledModels.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                        {enabledModels.map(id => {
+                            const info = getParticipantInfo(participants, id);
+                            return (
+                                <span
+                                    key={id}
+                                    className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-lg text-sm font-medium text-white shadow"
+                                    style={{ backgroundColor: info.color }}
+                                    title={info.model ? `${PROVIDERS[info.provider]?.name || info.provider}: ${info.model}` : info.label}
+                                >
+                                    {info.label}
+                                    <button
+                                        onClick={() => onToggleModel(id)}
+                                        className="hover:bg-white/25 rounded px-1 leading-none"
+                                        title="Remove"
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            );
+                        })}
+                    </div>
+                )}
 
-                        return (
-                            <button
-                                key={provider}
-                                onClick={() => onToggleModel(provider)}
-                                disabled={isDisabled}
-                                className={`
-                                    px-4 py-2 rounded-lg font-medium text-sm transition-all
-                                    ${isEnabled
-                                        ? 'text-white shadow-lg'
-                                        : !isDisabled
+                {settings.isAutomated ? (
+                    /* Add-model picker: endpoint + live-fetched model list */
+                    availableProviders.length === 0 ? (
+                        <p className="text-sm text-text-muted">
+                            Add an API key or local server URL above to pick models.
+                        </p>
+                    ) : (
+                        <div className="p-3 bg-surface-alt rounded-xl border border-border">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <select
+                                    value={effectiveProvider}
+                                    onChange={(e) => { setPickerProvider(e.target.value); setPickerModel(''); }}
+                                    className={selectClass}
+                                >
+                                    {availableProviders.map(p => (
+                                        <option key={p} value={p}>{PROVIDERS[p]?.name || p}</option>
+                                    ))}
+                                </select>
+
+                                <select
+                                    value={pickerModel}
+                                    onChange={(e) => setPickerModel(e.target.value)}
+                                    disabled={!pickerList}
+                                    className={`${selectClass} flex-1 min-w-40`}
+                                >
+                                    <option value="">
+                                        {!pickerList ? 'Loading models…'
+                                            : pickerList.error ? 'Model list unavailable'
+                                                : 'Select a model…'}
+                                    </option>
+                                    {(pickerList?.models || []).map(m => (
+                                        <option key={m.id} value={m.id}>{m.label}</option>
+                                    ))}
+                                    <option value={CUSTOM}>Custom model ID…</option>
+                                </select>
+
+                                {pickerModel === CUSTOM && (
+                                    <input
+                                        type="text"
+                                        value={customModel}
+                                        onChange={(e) => setCustomModel(e.target.value)}
+                                        placeholder="model-id"
+                                        className={`${selectClass} flex-1 min-w-32`}
+                                    />
+                                )}
+
+                                <button
+                                    onClick={handleAdd}
+                                    disabled={atMax || !effectiveProvider || !pickerModel || (pickerModel === CUSTOM && !customModel.trim())}
+                                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all
+                                        ${!atMax && pickerModel && (pickerModel !== CUSTOM || customModel.trim())
+                                            ? 'bg-[#4285f4] text-white hover:opacity-90'
+                                            : 'bg-surface-hover text-text-muted cursor-not-allowed'}`}
+                                >
+                                    + Add
+                                </button>
+                            </div>
+                            {pickerList?.error && (
+                                <p className="text-xs text-amber-500 mt-2">
+                                    Couldn't fetch models ({pickerList.error}) — use "Custom model ID…" instead.
+                                </p>
+                            )}
+                            {atMax && (
+                                <p className="text-xs text-amber-500 mt-2">Max {MAX_MODELS} models — remove one to add another.</p>
+                            )}
+                        </div>
+                    )
+                ) : (
+                    /* Manual mode: brand quick-picks, copy-paste to their web UIs */
+                    <div className="flex flex-wrap gap-2">
+                        {Object.keys(MODEL_DISPLAY).map(provider => {
+                            const isEnabled = enabledModels.includes(provider);
+                            if (isEnabled) return null;
+                            const display = MODEL_DISPLAY[provider];
+                            return (
+                                <button
+                                    key={provider}
+                                    onClick={() => onToggleModel(provider)}
+                                    disabled={atMax}
+                                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all
+                                        ${!atMax
                                             ? 'bg-surface-alt text-text-muted border border-border hover:border-text-muted'
-                                            : 'bg-surface-alt text-text-muted/50 border border-border cursor-not-allowed'
-                                    }
-                                `}
-                                style={isEnabled ? { backgroundColor: display.color } : {}}
-                                title={
-                                    isLocked ? 'Add API key to enable (or switch to Manual Mode)' :
-                                        isMaxed ? 'Max 5 models allowed' : ''
-                                }
-                            >
-                                {display.shortName}
-                            </button>
-                        );
-                    })}
-                </div>
-                {enabledModels.length > 5 && (
-                    <p className="text-xs text-amber-500 mt-2">Tip: 2-5 models recommended for best deliberation</p>
+                                            : 'bg-surface-alt text-text-muted/50 border border-border cursor-not-allowed'}`}
+                                    title={atMax ? `Max ${MAX_MODELS} models` : `Add ${display.shortName}`}
+                                >
+                                    + {display.shortName}
+                                </button>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
 
-            {/* Advanced: Custom model IDs */}
-            {enabledModels.length > 0 && (
-                <div className="mb-6">
-                    <button
-                        onClick={() => setShowAdvanced(!showAdvanced)}
-                        className="flex items-center gap-2 text-xs font-medium text-text-muted hover:text-text transition-colors"
-                    >
-                        <svg className={`w-3 h-3 transition-transform ${showAdvanced ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                        Custom model IDs
-                    </button>
-
-                    {showAdvanced && (
-                        <div className="mt-3 p-3 bg-surface-alt rounded-lg border border-border space-y-2">
-                            {enabledModels.map(provider => (
-                                <div key={provider} className="flex items-center gap-2">
-                                    <span className="text-xs font-medium w-20" style={{ color: MODEL_DISPLAY[provider].color }}>
-                                        {MODEL_DISPLAY[provider].shortName}
-                                    </span>
-                                    <input
-                                        type="text"
-                                        value={modelConfigs[provider]?.model || ''}
-                                        onChange={(e) => onSetModelConfig(provider, e.target.value || null)}
-                                        placeholder={`Default model`}
-                                        className="flex-1 px-2 py-1 bg-surface border border-border rounded text-xs focus:border-[#4285f4] transition-colors"
-                                    />
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-
             {/* Synthesis model — only meaningful when the app runs the synthesis call */}
-            {settings.isAutomated && (
+            {settings.isAutomated && availableProviders.length > 0 && (
                 <div className="mb-8">
                     <label className="block text-sm font-medium text-text-muted mb-2">
                         Synthesis model
                     </label>
-                    <select
-                        value={synthesisModel.provider}
-                        onChange={(e) => onSetSynthesisModel(e.target.value)}
-                        className="w-full px-3 py-2.5 bg-surface-alt border border-border rounded-lg text-sm focus:border-[#4285f4] transition-colors"
-                    >
-                        {availableProviders.map(provider => (
-                            <option key={provider} value={provider}>
-                                {MODEL_DISPLAY[provider].name}
+                    <div className="flex flex-wrap gap-2">
+                        <select
+                            value={synthesisProvider || ''}
+                            onChange={(e) => onSetSynthesisModel(e.target.value, null, null)}
+                            className={selectClass}
+                        >
+                            {!synthesisProvider && <option value="">Select endpoint…</option>}
+                            {availableProviders.map(p => (
+                                <option key={p} value={p}>{PROVIDERS[p]?.name || p}</option>
+                            ))}
+                        </select>
+                        <select
+                            value={synthesisModel?.model || ''}
+                            onChange={(e) => {
+                                const m = e.target.value || null;
+                                onSetSynthesisModel(synthesisModel.provider, m, m ? modelLabel(m) : null);
+                            }}
+                            disabled={!synthesisProvider || !synthesisList}
+                            className={`${selectClass} flex-1 min-w-40`}
+                        >
+                            <option value="">
+                                {synthesisProvider && !synthesisList ? 'Loading models…'
+                                    : synthesisList?.error ? 'Model list unavailable — provider default'
+                                        : 'Provider default'}
                             </option>
-                        ))}
-                    </select>
+                            {(synthesisList?.models || []).map(m => (
+                                <option key={m.id} value={m.id}>{m.label}</option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
             )}
 
             {/* Warning if automation not available */}
-            {settings.isAutomated && !canAutomate() && (
+            {settings.isAutomated && !canAutomate() && enabledModels.length > 0 && (
                 <div className="mb-6 p-3 bg-amber-500/10 border border-amber-500/30 rounded-lg text-sm text-amber-500">
-                    Add API keys for all selected models, or enable OpenRouter
+                    Some selected models are missing an API key for their endpoint — add keys above or remove them
                 </div>
             )}
 
@@ -290,8 +393,8 @@ export function SetupScreen({
                 <ol className="text-text-muted space-y-2 text-sm">
                     {settings.isAutomated ? (
                         <>
-                            <li>1. Configure your API keys above</li>
-                            <li>2. Select 2-5 models for deliberation</li>
+                            <li>1. Configure your API keys or local server above</li>
+                            <li>2. Pick 2-5 models — several from one endpoint is fine</li>
                             <li>3. Click Start - models automatically discuss until consensus</li>
                             <li>4. The synthesis model generates a unified answer</li>
                         </>

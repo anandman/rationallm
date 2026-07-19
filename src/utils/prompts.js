@@ -21,14 +21,25 @@ Please provide your answer. At the end, on its own line, indicate if you'd want 
 STATUS: CONTINUE (yes, show me other perspectives) or SATISFIED (my answer is complete)`;
 }
 
+// Resolve a display label for a participant id, with legacy fallbacks
+function labelFor(id, labels) {
+    return labels?.[id] || MODEL_NAMES[id] || id;
+}
+
 /**
- * Generate Round N prompt with cross-model context
+ * Generate Round N prompt with cross-model context.
+ * labels maps participant id -> display name.
  */
-export function generateRoundNPrompt(query, modelId, ownResponse, othersResponses) {
+export function generateRoundNPrompt(query, modelId, ownResponse, othersResponses, labels) {
     const otherModelsText = Object.entries(othersResponses)
         .filter(([id]) => id !== modelId)
-        .map(([id, response]) => `[${MODEL_NAMES[id]}] said:\n${response}`)
+        .map(([id, response]) => `[${labelFor(id, labels)}] said:\n${response}`)
         .join('\n\n');
+
+    const mentionExamples = Object.keys(othersResponses)
+        .filter(id => id !== modelId)
+        .map(id => `@${labelFor(id, labels)}`)
+        .join(', ') || '@ModelName';
 
     return `Original query: ${query}
 
@@ -45,7 +56,7 @@ Review the other perspectives. Then provide:
 1. Your updated answer (or confirm yours is unchanged)
 2. What points from others you found valuable or incorporated
 3. Where you still disagree and why
-4. Optionally: a direct question for a specific model (use @Claude, @GPT, or @Gemini)
+4. Optionally: a direct question for a specific model (use ${mentionExamples})
 
 End with your status on its own line:
 STATUS: SATISFIED (ready to conclude) | CONTINUE (want another round) | IMPASSE (fundamental disagreement, won't resolve)`;
@@ -54,12 +65,13 @@ STATUS: SATISFIED (ready to conclude) | CONTINUE (want another round) | IMPASSE 
 /**
  * Generate synthesis prompt after deliberation
  */
-export function generateSynthesisPrompt(query, finalResponses, roundCount) {
+export function generateSynthesisPrompt(query, finalResponses, roundCount, labels) {
+    const modelCount = Object.keys(finalResponses).length;
     const responsesText = Object.entries(finalResponses)
-        .map(([id, response]) => `${MODEL_NAMES[id]}'s final answer:\n${response}`)
+        .map(([id, response]) => `${labelFor(id, labels)}'s final answer:\n${response}`)
         .join('\n\n');
 
-    return `Three AI models have deliberated on this query:
+    return `${modelCount} AI model${modelCount > 1 ? 's have' : ' has'} deliberated on this query:
 
 Query: ${query}
 
@@ -78,13 +90,16 @@ Please synthesize these into:
  * Parse STATUS line from response
  * Returns: 'continue' | 'satisfied' | 'impasse' | null
  */
-export function parseStatus(responseText) {
+export function parseStatus(responseText, participantLabels = []) {
     if (!responseText) return null;
 
     // If model tags another model (asking a question), force status to CONTINUE
     // even if they explicitly wrote SATISFIED.
-    // The prompt instructs: "Optionally: a direct question... (use @Claude...)"
-    if (/@(Claude|GPT|Gemini)/i.test(responseText)) {
+    // The prompt instructs: "Optionally: a direct question... (use @<name>)"
+    const names = participantLabels.length
+        ? participantLabels.map(l => l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        : ['Claude', 'GPT', 'Gemini'];
+    if (new RegExp(`@(${names.join('|')})`, 'i').test(responseText)) {
         return 'continue';
     }
 
@@ -133,12 +148,13 @@ export function generateId() {
  */
 export function exportAsMarkdown(deliberation) {
     const lines = [];
+    const label = (id) => deliberation.participants?.[id]?.label || MODEL_NAMES[id] || id;
 
     lines.push(`# RationaLLM Deliberation`);
     lines.push('');
     lines.push(`**Query:** ${deliberation.query}`);
     lines.push('');
-    lines.push(`**Models:** ${deliberation.enabledModels.map(m => MODEL_NAMES[m]).join(', ')}`);
+    lines.push(`**Models:** ${deliberation.enabledModels.map(label).join(', ')}`);
     lines.push('');
     lines.push(`**Completed:** ${new Date(deliberation.completedAt || deliberation.createdAt).toLocaleString()}`);
     lines.push('');
@@ -153,7 +169,7 @@ export function exportAsMarkdown(deliberation) {
         deliberation.enabledModels.forEach(modelId => {
             const response = round.responses[modelId];
             if (response?.text) {
-                lines.push(`### ${MODEL_NAMES[modelId]}`);
+                lines.push(`### ${label(modelId)}`);
                 lines.push('');
                 lines.push(response.text);
                 lines.push('');

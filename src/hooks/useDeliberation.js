@@ -9,7 +9,7 @@ import {
     generateId
 } from '../utils/prompts';
 import { callLLM, callMultipleModels } from '../utils/api';
-import { createModelConfig, MODEL_DISPLAY } from '../utils/models';
+import { makeParticipant, getParticipantInfo, hasApiKeyForProvider } from '../utils/models';
 
 const STORAGE_KEY = 'rationallm_current';
 const HISTORY_KEY = 'rationallm_history';
@@ -28,21 +28,42 @@ const createEmptyResponses = (enabledModels) => {
 const createInitialState = () => ({
     id: null,
     query: '',
+    // enabledModels holds participant ids; participants maps id -> {provider, model, label, color}
     enabledModels: ['openai', 'anthropic', 'google'],
-    modelConfigs: {}, // { provider: { model: 'custom-model-id' } }
+    participants: {},
     currentRound: 1,
     rounds: [],
     phase: 'setup', // setup | deliberation | synthesis | complete
     synthesis: { prompt: '', response: '', loading: false },
-    synthesisModel: { provider: 'openai', model: null },
+    synthesisModel: { provider: 'openai', model: null, label: null },
     createdAt: null,
     completedAt: null
 });
 
 const createInitialSettings = () => ({
-    isAutomated: true,
-    useOpenRouter: false
+    isAutomated: true
 });
+
+// Old state shapes keyed everything by bare provider id with an optional
+// modelConfigs override; rebuild a participants map with the same ids so
+// saved responses still line up.
+const migrateDeliberation = (d) => {
+    if (!d) return d;
+    if (d.participants && Object.keys(d.participants).length > 0) return d;
+    const participants = {};
+    (d.enabledModels || []).forEach(id => {
+        participants[id] = {
+            ...makeParticipant(id),
+            model: d.modelConfigs?.[id]?.model || null
+        };
+    });
+    return { ...d, participants };
+};
+
+// participant id -> label map for prompt generation and status parsing
+const labelsOf = (state) => Object.fromEntries(
+    (state.enabledModels || []).map(id => [id, getParticipantInfo(state.participants, id).label])
+);
 
 const PREFERENCES_KEY = 'rationallm_preferences';
 
@@ -53,19 +74,21 @@ export function useDeliberation() {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 // Allow restoring setup phase to keep query draft
-                if (parsed) return parsed;
+                if (parsed) return migrateDeliberation(parsed);
             }
 
             // If no active session, load preferences for defaults
             const savedPreferences = localStorage.getItem(PREFERENCES_KEY);
             let initialEnabled = [];
+            let initialParticipants = null;
             let initialConfigs = {};
-            let initialSynthesisModel = { provider: 'openai', model: null };
+            let initialSynthesisModel = { provider: 'openai', model: null, label: null };
 
             if (savedPreferences) {
                 const prefs = JSON.parse(savedPreferences);
                 if (prefs) {
                     initialEnabled = prefs.enabledModels || [];
+                    initialParticipants = prefs.participants || null;
                     initialConfigs = prefs.modelConfigs || {};
                     if (prefs.synthesisModel) {
                         initialSynthesisModel = prefs.synthesisModel;
@@ -78,25 +101,24 @@ export function useDeliberation() {
                 const savedKeys = localStorage.getItem(API_KEYS_KEY);
                 if (savedKeys) {
                     const keys = JSON.parse(savedKeys) || {};
-                    const validKeys = Object.keys(keys).filter(k => keys[k] && k !== 'openrouter');
+                    const validKeys = Object.keys(keys)
+                        .filter(k => keys[k] && k !== 'openrouter' && k !== 'ollama');
                     if (validKeys.length > 0) {
                         initialEnabled = validKeys;
-                    } else if (keys.openrouter) {
-                        initialEnabled = ['openai', 'anthropic', 'google'];
                     }
                 }
             }
 
-
-            return {
+            return migrateDeliberation({
                 ...createInitialState(),
                 enabledModels: initialEnabled,
+                participants: initialParticipants || {},
                 modelConfigs: initialConfigs,
                 synthesisModel: initialSynthesisModel
-            };
+            });
         } catch (e) {
             console.error('Failed to restore state:', e);
-            return createInitialState();
+            return migrateDeliberation(createInitialState());
         }
     });
 
@@ -143,11 +165,11 @@ export function useDeliberation() {
     useEffect(() => {
         const prefs = {
             enabledModels: state.enabledModels,
-            modelConfigs: state.modelConfigs,
+            participants: state.participants,
             synthesisModel: state.synthesisModel
         };
         localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
-    }, [state.enabledModels, state.modelConfigs, state.synthesisModel]);
+    }, [state.enabledModels, state.participants, state.synthesisModel]);
 
     // Save history to localStorage
     useEffect(() => {
@@ -164,31 +186,30 @@ export function useDeliberation() {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     }, [settings]);
 
-    // Update API keys
+    // Update API keys. Filling a direct provider key auto-adds that provider's
+    // default model; OpenRouter/Ollama need an explicit model pick instead.
     const setApiKeys = useCallback((newKeys) => {
-        // Check if we should auto-enable any models
         const newlyEnabled = [];
         Object.entries(newKeys).forEach(([provider, key]) => {
             const wasEmpty = !apiKeys[provider] || !apiKeys[provider].trim();
             const isNowFilled = key && key.trim().length > 0;
 
-            if (wasEmpty && isNowFilled) {
-                if (provider === 'openrouter') {
-                    // OpenRouter enables the big three by default
-                    ['openai', 'anthropic', 'google'].forEach(m => newlyEnabled.push(m));
-                } else {
-                    newlyEnabled.push(provider);
-                }
+            if (wasEmpty && isNowFilled && provider !== 'openrouter' && provider !== 'ollama') {
+                newlyEnabled.push(provider);
             }
         });
 
         if (newlyEnabled.length > 0) {
             setState(prev => {
                 const nextEnabled = [...prev.enabledModels];
-                newlyEnabled.forEach(m => {
-                    if (!nextEnabled.includes(m)) nextEnabled.push(m);
+                const nextParticipants = { ...prev.participants };
+                newlyEnabled.forEach(p => {
+                    if (!nextEnabled.includes(p)) {
+                        nextEnabled.push(p);
+                        nextParticipants[p] = makeParticipant(p);
+                    }
                 });
-                return { ...prev, enabledModels: nextEnabled };
+                return { ...prev, enabledModels: nextEnabled, participants: nextParticipants };
             });
         }
 
@@ -200,32 +221,41 @@ export function useDeliberation() {
         setSettingsState(prev => ({ ...prev, ...newSettings }));
     }, []);
 
-    // Toggle model selection
-    const toggleModel = useCallback((modelId) => {
+    // Toggle a participant on/off by id (manual-mode chips pass bare provider ids)
+    const toggleModel = useCallback((id) => {
         setState(prev => {
-            const models = prev.enabledModels.includes(modelId)
-                ? prev.enabledModels.filter(m => m !== modelId)
-                : [...prev.enabledModels, modelId];
-            return { ...prev, enabledModels: models };
+            if (prev.enabledModels.includes(id)) {
+                return { ...prev, enabledModels: prev.enabledModels.filter(m => m !== id) };
+            }
+            return {
+                ...prev,
+                participants: { ...prev.participants, [id]: getParticipantInfo(prev.participants, id) },
+                enabledModels: [...prev.enabledModels, id]
+            };
         });
     }, []);
 
-    // Set custom model for a provider
-    const setModelConfig = useCallback((provider, model) => {
-        setState(prev => ({
-            ...prev,
-            modelConfigs: {
-                ...prev.modelConfigs,
-                [provider]: { model }
-            }
-        }));
+    // Add a specific model from an endpoint as a deliberation participant
+    const addParticipant = useCallback((provider, model = null) => {
+        setState(prev => {
+            const p = makeParticipant(provider, model);
+            if (prev.enabledModels.includes(p.id)) return prev;
+            // Disambiguate label collisions (e.g. same model on two endpoints)
+            const usedLabels = prev.enabledModels.map(id => getParticipantInfo(prev.participants, id).label);
+            const label = usedLabels.includes(p.label) && p.model ? p.model : p.label;
+            return {
+                ...prev,
+                participants: { ...prev.participants, [p.id]: { ...p, label } },
+                enabledModels: [...prev.enabledModels, p.id]
+            };
+        });
     }, []);
 
     // Set synthesis model
-    const setSynthesisModel = useCallback((provider, model = null) => {
+    const setSynthesisModel = useCallback((provider, model = null, label = null) => {
         setState(prev => ({
             ...prev,
-            synthesisModel: { provider, model }
+            synthesisModel: { provider, model, label }
         }));
     }, []);
 
@@ -234,11 +264,11 @@ export function useDeliberation() {
         setState(prev => ({ ...prev, query }));
     }, []);
 
-    // Get model config for a provider
-    const getModelConfig = useCallback((provider) => {
-        const customModel = state.modelConfigs[provider]?.model || null;
-        return createModelConfig(provider, customModel);
-    }, [state.modelConfigs]);
+    // Get API call config for a participant
+    const getModelConfig = useCallback((id) => {
+        const info = getParticipantInfo(state.participants, id);
+        return { id, provider: info.provider, model: info.model };
+    }, [state.participants]);
 
     // Start deliberation
     const startDeliberation = useCallback(() => {
@@ -270,7 +300,7 @@ export function useDeliberation() {
             responses[modelId] = {
                 ...responses[modelId],
                 text,
-                status: parseStatus(text),
+                status: parseStatus(text, Object.values(labelsOf(prev))),
                 loading: false,
                 error: null
             };
@@ -332,30 +362,31 @@ export function useDeliberation() {
         setIsRunning(true);
 
         try {
-            const modelConfigs = state.enabledModels.map(provider => getModelConfig(provider));
+            const modelConfigs = state.enabledModels.map(id => getModelConfig(id));
+            const labels = labelsOf(state);
 
-            // Generate prompts for each model
+            // Generate prompts for each participant
             const getPromptForConfig = (config) => {
                 if (state.currentRound === 1) {
                     return generateRound1Prompt(state.query);
                 }
 
                 const prevRoundResponses = state.rounds[state.currentRound - 2]?.responses || {};
-                const ownResponse = prevRoundResponses[config.provider]?.text || '';
+                const ownResponse = prevRoundResponses[config.id]?.text || '';
                 const othersResponses = {};
 
                 state.enabledModels.forEach(id => {
-                    if (id !== config.provider) {
+                    if (id !== config.id) {
                         othersResponses[id] = prevRoundResponses[id]?.text || '';
                     }
                 });
 
-                return generateRoundNPrompt(state.query, config.provider, ownResponse, othersResponses);
+                return generateRoundNPrompt(state.query, config.id, ownResponse, othersResponses, labels);
             };
 
             // Update loading states
-            state.enabledModels.forEach(provider => {
-                updateResponseState(provider, { loading: true, error: null });
+            state.enabledModels.forEach(id => {
+                updateResponseState(id, { loading: true, error: null });
             });
 
             // Call all models
@@ -363,22 +394,21 @@ export function useDeliberation() {
                 modelConfigs,
                 getPromptForConfig,
                 apiKeys,
-                settings.useOpenRouter,
-                (provider, status, error) => {
+                (id, status, error) => {
                     if (status === 'loading') {
-                        updateResponseState(provider, { loading: true });
+                        updateResponseState(id, { loading: true });
                     } else if (status === 'error') {
-                        updateResponseState(provider, { loading: false, error });
+                        updateResponseState(id, { loading: false, error });
                     }
                 }
             );
 
             // Update responses
-            Object.entries(results).forEach(([provider, result]) => {
+            Object.entries(results).forEach(([id, result]) => {
                 if (result.success) {
-                    updateResponse(provider, result.text);
+                    updateResponse(id, result.text);
                 } else {
-                    updateResponseState(provider, { loading: false, error: result.error });
+                    updateResponseState(id, { loading: false, error: result.error });
                 }
             });
 
@@ -387,7 +417,7 @@ export function useDeliberation() {
         } finally {
             setIsRunning(false);
         }
-    }, [isRunning, state.enabledModels, state.currentRound, state.rounds, state.query, getModelConfig, apiKeys, settings.useOpenRouter, updateResponse, updateResponseState]);
+    }, [isRunning, state, getModelConfig, apiKeys, updateResponse, updateResponseState]);
 
     // Proceed to next round
     const nextRound = useCallback(() => {
@@ -412,7 +442,7 @@ export function useDeliberation() {
                     ...prev,
                     phase: 'synthesis',
                     synthesis: {
-                        prompt: generateSynthesisPrompt(prev.query, finalResponses, prev.currentRound),
+                        prompt: generateSynthesisPrompt(prev.query, finalResponses, prev.currentRound, labelsOf(prev)),
                         response: '',
                         loading: false
                     }
@@ -446,16 +476,10 @@ export function useDeliberation() {
         }));
 
         try {
-            const config = createModelConfig(
-                state.synthesisModel.provider,
-                state.synthesisModel.model
-            );
-
             const response = await callLLM(
-                config,
+                { provider: state.synthesisModel.provider, model: state.synthesisModel.model },
                 state.synthesis.prompt,
-                apiKeys,
-                settings.useOpenRouter
+                apiKeys
             );
 
             setState(prev => ({
@@ -479,7 +503,7 @@ export function useDeliberation() {
         } finally {
             setIsRunning(false);
         }
-    }, [isRunning, state.synthesisModel, state.synthesis.prompt, apiKeys, settings.useOpenRouter]);
+    }, [isRunning, state.synthesisModel, state.synthesis.prompt, apiKeys]);
 
     // Update synthesis response (manual mode)
     const updateSynthesis = useCallback((response) => {
@@ -511,14 +535,14 @@ export function useDeliberation() {
         setState(prev => ({
             ...createInitialState(),
             enabledModels: prev.enabledModels,
-            modelConfigs: prev.modelConfigs,
+            participants: prev.participants,
             synthesisModel: prev.synthesisModel
         }));
     }, []);
 
     // Load from history
     const loadFromHistory = useCallback((deliberation) => {
-        setState(deliberation);
+        setState(migrateDeliberation(deliberation));
     }, []);
 
     // Delete from history
@@ -542,17 +566,15 @@ export function useDeliberation() {
             }
         });
 
-        return generateRoundNPrompt(state.query, modelId, ownResponse, othersResponses);
-    }, [state.query, state.currentRound, state.rounds, state.enabledModels]);
+        return generateRoundNPrompt(state.query, modelId, ownResponse, othersResponses, labelsOf(state));
+    }, [state]);
 
     // Check if automation is possible (has required API keys)
     const canAutomate = useCallback(() => {
-        if (settings.useOpenRouter && apiKeys.openrouter) {
-            return true;
-        }
-        // Check if all enabled models have API keys
-        return state.enabledModels.every(provider => !!apiKeys[provider]);
-    }, [settings.useOpenRouter, apiKeys, state.enabledModels]);
+        return state.enabledModels.every(id =>
+            hasApiKeyForProvider(apiKeys, getParticipantInfo(state.participants, id).provider)
+        );
+    }, [apiKeys, state.enabledModels, state.participants]);
 
     return {
         state,
@@ -565,7 +587,7 @@ export function useDeliberation() {
         setApiKeys,
         setSettings,
         toggleModel,
-        setModelConfig,
+        addParticipant,
         setSynthesisModel,
         startDeliberation,
         updateResponse,

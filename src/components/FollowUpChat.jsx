@@ -1,17 +1,17 @@
 import { useState, useRef, useEffect } from 'react';
-import { MODEL_DISPLAY } from '../utils/models';
 import { callLLM } from '../utils/api';
 
+// availableModels: array of participant infos {id, provider, model, label, color}
 export function FollowUpChat({
     query,
     synthesis,
     availableModels,
-    apiKeys,
-    useOpenRouter
+    apiKeys
 }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
-    const [selectedModel, setSelectedModel] = useState(availableModels[0] || 'openai');
+    const [selectedModel, setSelectedModel] = useState(availableModels[0]?.id || '');
+    const selectedInfo = availableModels.find(m => m.id === selectedModel) || availableModels[0];
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
     const messagesEndRef = useRef(null);
@@ -64,15 +64,19 @@ Now the user has a follow-up question. Please respond helpfully, building on the
                 prompt = `${buildContextPrompt()}\n\n**Conversation so far:**\n${history}\n\nUser: ${userMessage}\n\nAssistant:`;
             }
 
-            const response = await callLLM({
-                provider: selectedModel,
+            const response = await callLLM(
+                { provider: selectedInfo.provider, model: selectedInfo.model },
                 prompt,
-                apiKeys,
-                useOpenRouter
-            });
+                apiKeys
+            );
 
             // Add assistant response
-            setMessages(prev => [...prev, { role: 'assistant', content: response, model: selectedModel }]);
+            setMessages(prev => [...prev, {
+                role: 'assistant',
+                content: response,
+                label: selectedInfo.label,
+                color: selectedInfo.color
+            }]);
         } catch (err) {
             console.error('Follow-up chat error:', err);
             setError(err.message);
@@ -90,7 +94,7 @@ Now the user has a follow-up question. Please respond helpfully, building on the
         }
     };
 
-    const display = MODEL_DISPLAY[selectedModel] || MODEL_DISPLAY.openai;
+    const display = selectedInfo || { label: 'Model', color: '#64748b' };
 
     return (
         <div className="bg-surface-alt rounded-xl border border-border overflow-hidden">
@@ -101,9 +105,9 @@ Now the user has a follow-up question. Please respond helpfully, building on the
                     onChange={(e) => setSelectedModel(e.target.value)}
                     className="px-3 py-1.5 bg-surface border border-border rounded-lg text-sm focus:border-[#4285f4] transition-colors"
                 >
-                    {availableModels.map(modelId => (
-                        <option key={modelId} value={modelId}>
-                            {MODEL_DISPLAY[modelId]?.shortName || modelId}
+                    {availableModels.map(m => (
+                        <option key={m.id} value={m.id}>
+                            {m.label}
                         </option>
                     ))}
                 </select>
@@ -130,12 +134,12 @@ Now the user has a follow-up question. Please respond helpfully, building on the
                                     : 'bg-surface border border-border'
                                 }`}
                         >
-                            {msg.role === 'assistant' && msg.model && (
+                            {msg.role === 'assistant' && msg.label && (
                                 <div
                                     className="text-xs mb-1 opacity-70"
-                                    style={{ color: MODEL_DISPLAY[msg.model]?.color }}
+                                    style={{ color: msg.color }}
                                 >
-                                    {MODEL_DISPLAY[msg.model]?.shortName}
+                                    {msg.label}
                                 </div>
                             )}
                             <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
@@ -151,7 +155,7 @@ Now the user has a follow-up question. Please respond helpfully, building on the
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                 </svg>
-                                <span style={{ color: display.color }}>{display.shortName}</span> is thinking...
+                                <span style={{ color: display.color }}>{display.label}</span> is thinking...
                             </div>
                         </div>
                     </div>

@@ -1,15 +1,13 @@
 import { useState } from 'react';
-import { MODEL_DISPLAY } from '../utils/models';
 import { MarkdownRenderer } from './MarkdownRenderer';
 
-export function ModelCard({ modelId, prompt, response, status, loading, error, onResponseChange, isAutomated, onDisable }) {
+export function ModelCard({ info, prompt, response, status, loading, error, onResponseChange, isAutomated, onDisable }) {
     const [copied, setCopied] = useState(false);
     const [showPrompt, setShowPrompt] = useState(!isAutomated);
     const [viewMode, setViewMode] = useState((isAutomated || response) ? 'preview' : 'edit');
 
-    const display = MODEL_DISPLAY[modelId] || MODEL_DISPLAY.openai;
-    const colorVar = display.color;
-    const modelName = display.shortName;
+    const colorVar = info?.color || '#64748b';
+    const modelName = info?.label || 'Model';
 
     const handleCopy = async () => {
         try {

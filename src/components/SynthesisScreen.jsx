@@ -20,7 +20,11 @@ export function SynthesisScreen({
     const [copied, setCopied] = useState(false);
     const [showPrompt, setShowPrompt] = useState(!isAutomated);
 
-    const synthesisDisplay = MODEL_DISPLAY[synthesisModel?.provider] || MODEL_DISPLAY.openai;
+    const providerDisplay = MODEL_DISPLAY[synthesisModel?.provider];
+    const synthesisDisplay = {
+        shortName: synthesisModel?.label || providerDisplay?.shortName || synthesisModel?.provider || 'Model',
+        color: providerDisplay?.color || '#64748b'
+    };
 
     // Auto-run synthesis in automated mode
     useEffect(() => {

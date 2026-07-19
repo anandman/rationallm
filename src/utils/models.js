@@ -86,6 +86,74 @@ export const MODEL_DISPLAY = {
     ollama: { name: 'Ollama', color: '#64748b', shortName: 'Ollama' }
 };
 
+// Brand colors for well-known model families, used when a generic endpoint
+// (OpenRouter, Ollama) serves a recognizable model
+const BRAND_COLORS = [
+    [/claude/i, '#d4a27f'],
+    [/gpt|^o\d|openai|codex/i, '#10a37f'],
+    [/gemini|gemma/i, '#4285f4'],
+    [/grok/i, '#1da1f2'],
+    [/mistral|mixtral|codestral|magistral|devstral/i, '#ff7000'],
+    [/deepseek/i, '#0066ff'],
+    [/llama/i, '#0668e1'],
+    [/qwen/i, '#7c3aed'],
+    [/kimi|moonshot/i, '#16a34a'],
+    [/nemotron|nvidia/i, '#76b900']
+];
+
+// Short human label for a model ID: strip vendor prefix and :latest tag
+export function modelLabel(modelId) {
+    if (!modelId) return '';
+    return modelId.split('/').pop().replace(/:latest$/, '');
+}
+
+function colorForModel(provider, modelId) {
+    for (const [pattern, color] of BRAND_COLORS) {
+        if (pattern.test(modelLabel(modelId))) return color;
+    }
+    return MODEL_DISPLAY[provider]?.color || '#64748b';
+}
+
+/**
+ * A participant is one model taking part in a deliberation. Several
+ * participants may share a provider (e.g. three OpenRouter models).
+ * id doubles as the key for responses/enabledModels. A participant with no
+ * model (manual mode, or migrated old state) keeps the bare provider as id
+ * so old sessions' response keys still match.
+ */
+export function makeParticipant(provider, model = null) {
+    const display = MODEL_DISPLAY[provider];
+    if (!model) {
+        return {
+            id: provider,
+            provider,
+            model: null,
+            label: display?.shortName || provider,
+            color: display?.color || '#64748b'
+        };
+    }
+    return {
+        id: `${provider}:${model}`,
+        provider,
+        model,
+        label: modelLabel(model),
+        color: colorForModel(provider, model)
+    };
+}
+
+/**
+ * Look up a participant by id, tolerating old state shapes where ids were
+ * bare provider names and no participants map existed.
+ */
+export function getParticipantInfo(participants, id) {
+    if (participants?.[id]) return participants[id];
+    if (id?.includes(':')) {
+        const [provider, ...rest] = id.split(':');
+        return makeParticipant(provider, rest.join(':'));
+    }
+    return makeParticipant(id);
+}
+
 // Get OpenRouter model ID for a provider
 export function getOpenRouterModelId(provider, customModel = null) {
     if (customModel) {
@@ -122,28 +190,13 @@ export function createModelConfig(provider, customModel = null) {
 }
 
 // Validate that we have the required API key for a provider
-export function hasApiKeyForProvider(apiKeys, provider, useOpenRouter = false) {
-    // Ollama is a local server; OpenRouter can't reach it, so it always
-    // needs its own server URL (stored in apiKeys.ollama)
-    if (provider === 'ollama') {
-        return !!apiKeys.ollama;
-    }
-    if (useOpenRouter && apiKeys.openrouter) {
-        return true;
-    }
-    return !!apiKeys[provider];
+// A provider is usable when its key (or, for Ollama, its server URL) is set.
+// OpenRouter is an endpoint of its own — no implicit routing for others.
+export function hasApiKeyForProvider(apiKeys, provider) {
+    return !!apiKeys?.[provider];
 }
 
-// Get all available providers that have API keys configured
+// All endpoints with a key/URL configured (openrouter included as its own)
 export function getAvailableProviders(apiKeys) {
-    const hasOpenRouter = !!apiKeys.openrouter;
-    const directProviders = Object.keys(PROVIDERS)
-        .filter(p => p !== 'openrouter' && apiKeys[p]);
-
-    if (hasOpenRouter) {
-        // OpenRouter gives access to all providers except Ollama (local server)
-        return Object.keys(MODEL_DISPLAY)
-            .filter(p => p !== 'ollama' || !!apiKeys.ollama);
-    }
-    return directProviders;
+    return Object.keys(PROVIDERS).filter(p => !!apiKeys?.[p]);
 }

@@ -17,7 +17,7 @@ function App() {
     setApiKeys,
     setSettings,
     toggleModel,
-    setModelConfig,
+    addParticipant,
     setSynthesisModel,
     startDeliberation,
     updateResponse,
@@ -45,13 +45,13 @@ function App() {
           <SetupScreen
             query={state.query}
             enabledModels={state.enabledModels}
-            modelConfigs={state.modelConfigs}
+            participants={state.participants}
             synthesisModel={state.synthesisModel}
             apiKeys={apiKeys}
             settings={settings}
             onQueryChange={setQuery}
             onToggleModel={toggleModel}
-            onSetModelConfig={setModelConfig}
+            onAddParticipant={addParticipant}
             onSetSynthesisModel={setSynthesisModel}
             onSetApiKeys={setApiKeys}
             onSetSettings={setSettings}
@@ -65,6 +65,7 @@ function App() {
           <RoundDisplay
             currentRound={state.currentRound}
             enabledModels={state.enabledModels}
+            participants={state.participants}
             responses={getCurrentResponses()}
             getPromptForModel={getPromptForModel}
             onUpdateResponse={updateResponse}
@@ -101,7 +102,6 @@ function App() {
             deliberation={state}
             onStartNew={startNew}
             apiKeys={apiKeys}
-            settings={settings}
           />
         );
 
